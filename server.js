@@ -1,0 +1,114 @@
+import express from "express";
+import next from "next";
+import dotenv from "dotenv";
+import mongoose from "mongoose";
+import cookieParser from "cookie-parser";
+import cors from "cors";
+import http from "http";
+import { Server as SocketIOServer } from "socket.io";
+import apiRouter from "./src/routes/index.js";
+
+dotenv.config();
+
+const dev = process.env.NODE_ENV !== "production";
+const app = next({ dev });
+const handle = app.getRequestHandler();
+
+app.prepare().then(async () => {
+  const server = express();
+  const httpServer = http.createServer(server);
+
+  // ✅ Socket.IO setup
+  const io = new SocketIOServer(httpServer, {
+    cors: {
+      origin: "*", // ✅ Azure: allow any origin
+      methods: ["GET", "POST"],
+    },
+  });
+
+  // ✅ Middleware
+  server.use(cors({ origin: true, credentials: true }));
+  server.use(express.json({ limit: "10mb" }));
+  server.use(cookieParser());
+
+  // ✅ MongoDB connection
+  try {
+    if (process.env.MONGO_URI) {
+      await mongoose.connect(process.env.MONGO_URI);
+      console.log("✅ MongoDB connected");
+    } else {
+      console.log("⚠️ No MONGO_URI found in .env — skipping DB connection");
+    }
+  } catch (err) {
+    console.error("❌ MongoDB connection failed:", err.message);
+  }
+
+  // ✅ Message model (kept lightweight)
+  const messageSchema = new mongoose.Schema({
+    roomId: String,
+    sender: String, // "guest" or "host"
+    text: String,
+    timestamp: { type: Date, default: Date.now },
+  });
+  const Message =
+    mongoose.models.Message || mongoose.model("Message", messageSchema);
+
+  // ✅ Socket.IO event handlers
+  io.on("connection", (socket) => {
+    console.log("🟢 New user connected:", socket.id);
+
+    // 👑 Admin joins dashboard
+    socket.on("adminJoin", async () => {
+      console.log("👑 Admin joined");
+      socket.join("admins");
+      const rooms = await Message.distinct("roomId");
+      socket.emit("roomsList", rooms);
+    });
+
+    // 🏠 Join specific room
+    socket.on("joinRoom", async (roomId) => {
+      socket.join(roomId);
+      console.log(`🏠 User joined room: ${roomId}`);
+
+      const history = await Message.find({ roomId })
+        .sort({ timestamp: 1 })
+        .limit(50);
+      socket.emit("chatHistory", history);
+
+      const rooms = await Message.distinct("roomId");
+      io.to("admins").emit("updateRooms", rooms);
+    });
+
+    // 💬 Handle new message
+    socket.on("sendMessage", async ({ roomId, sender, text }) => {
+      if (!text || !roomId) return;
+      const msg = await Message.create({ roomId, sender, text });
+      io.to(roomId).emit("newMessage", msg);
+      console.log(`💬 [${roomId}] ${sender}: ${text}`);
+
+      if (sender === "guest") {
+        io.to("admins").emit("guestMessageNotification", { roomId });
+        const rooms = await Message.distinct("roomId");
+        io.to("admins").emit("updateRooms", rooms);
+      }
+    });
+
+    socket.on("disconnect", () => {
+      console.log("🔴 User disconnected:", socket.id);
+    });
+  });
+
+  // ✅ Express routes
+  server.use("/api", apiRouter);
+
+  // ✅ Health check for Azure
+  server.get("/health", (req, res) => res.send("OK"));
+
+  server.use((req, res) => handle(req, res));
+
+  // ✅ Start server
+  const port = process.env.PORT || 8080; // Azure uses 8080 internally
+  httpServer.listen(port, () => {
+    console.log(`🚀 SmartCompanion running on port ${port}`);
+  });
+});
