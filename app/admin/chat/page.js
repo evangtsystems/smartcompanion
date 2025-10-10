@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import io from "socket.io-client";
-import apiBaseUrl from "../config/api"; // adjust path if needed
+import api from '../../../src/config/api';
+
 
 export default function AdminChatDashboard() {
   const [socket, setSocket] = useState(null);
