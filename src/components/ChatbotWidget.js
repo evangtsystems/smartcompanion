@@ -41,8 +41,19 @@ setSocket(newSocket);
     });
 
     newSocket.on("newMessage", (msg) => {
-      setMessages((prev) => [...prev, msg]);
-    });
+  setMessages((prev) => [...prev, msg]);
+
+  // 🔔 Notify guest only if the chat is currently closed
+  if (msg.sender !== "guest" && !showChat) {
+    // 📳 Vibrate on mobile
+    if ("vibrate" in navigator) navigator.vibrate([200, 100, 200]);
+
+    // 🔊 Optional short notification sound
+    const audio = new Audio("/notify.mp3");
+    audio.play().catch(() => {});
+  }
+});
+
 
     return () => newSocket.close();
   }, [resolvedRoomId]);
@@ -201,31 +212,55 @@ setSocket(newSocket);
               background: "#fffdf2",
             }}
           >
-            {messages.map((msg, idx) => (
-              <div
-                key={idx}
-                style={{
-                  display: "flex",
-                  justifyContent:
-                    msg.sender === "guest" ? "flex-end" : "flex-start",
-                  marginBottom: "8px",
-                }}
-              >
-                <div
-                  style={{
-                    background:
-                      msg.sender === "guest" ? "#fff072" : "#fff7b3",
-                    borderRadius: "10px",
-                    padding: "8px 12px",
-                    maxWidth: "75%",
-                    color: "#333",
-                    fontSize: "0.9rem",
-                  }}
-                >
-                  {msg.text}
-                </div>
-              </div>
-            ))}
+            {messages.map((msg, idx) => {
+  const isGuest = msg.sender === "guest";
+  return (
+    <div
+      key={idx}
+      style={{
+        display: "flex",
+        justifyContent: isGuest ? "flex-end" : "flex-start",
+        marginBottom: "10px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: isGuest ? "flex-end" : "flex-start",
+        }}
+      >
+        <div
+          style={{
+            background: isGuest ? "#4caf50" : "#c9be60ff",
+            color: isGuest ? "#fff" : "#222",
+            borderRadius: isGuest
+              ? "15px 15px 0 15px"
+              : "15px 15px 15px 0",
+            padding: "8px 12px",
+            maxWidth: "75%",
+            wordWrap: "break-word",
+            fontSize: "0.9rem",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+          }}
+        >
+          {msg.text}
+        </div>
+        <small
+          style={{
+            color: "#535353ff",
+            fontSize: "0.7rem",
+            marginTop: "3px",
+            paddingRight: isGuest ? "4px" : "0",
+          }}
+        >
+          {isGuest ? "You" : "Host"}
+        </small>
+      </div>
+    </div>
+  );
+})}
+
             <div ref={chatEndRef} />
           </div>
 
