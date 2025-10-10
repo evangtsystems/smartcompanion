@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import io from "socket.io-client";
-import api from '../../../src/config/api';
+import apiBaseUrl from '../../../src/config/api';
 
 
 export default function AdminChatDashboard() {

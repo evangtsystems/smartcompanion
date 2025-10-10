@@ -9,7 +9,7 @@ import Room from "../src/models/Room.js";
 
 async function main() {
   const MONGO_URI = process.env.MONGO_URI;
-  const SITE_URL  = process.env.SITE_URL || "http://localhost:5000";
+  const SITE_URL  = process.env.SITE_URL || "https://smartcompanion-h9bqcgcqcegaecd7.italynorth-01.azurewebsites.net";
 
   if (!MONGO_URI) {
     console.error("❌ Missing MONGO_URI in .env");
