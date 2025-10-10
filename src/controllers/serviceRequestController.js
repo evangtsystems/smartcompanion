@@ -2,7 +2,18 @@ import ServiceRequest from "../models/ServiceRequest.js";
 
 export const createServiceRequest = async (req, res) => {
   try {
-    const request = await ServiceRequest.create(req.body);
+    const { name, requestType, message, villa, roomSlug, token } = req.body;
+
+    const request = await ServiceRequest.create({
+      name,
+      requestType,
+      message,
+      villa,
+      roomNumber: roomSlug || "Unknown", // 👈 Always save something visible
+      token,
+      status: "pending",
+    });
+
     res.status(201).json({ success: true, data: request });
   } catch (err) {
     console.error("❌ createServiceRequest error:", err);

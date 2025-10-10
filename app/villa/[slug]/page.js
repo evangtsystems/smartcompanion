@@ -90,31 +90,46 @@ useEffect(() => {
       }
     }
   }, [loading, villa]);
+
+  
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!villa) return;
+  e.preventDefault();
+  if (!villa) return;
 
-    const payload = { ...form, villa: villa._id };
+  // ✅ Always read token safely here
+  const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  const token = params?.get("token") || null;
 
-    try {
-      const res = await fetch(`${window.location.origin}/api/requests`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (res.ok) {
-        setSubmitted(true);
-        setForm({
-          name: "",
-          roomNumber: "",
-          requestType: "cleaning",
-          message: "",
-        });
-      }
-    } catch (err) {
-      console.error("Error sending request:", err);
-    }
+  const payload = {
+    ...form,
+    villa: villa._id,
+    roomSlug: slug,  // 👈 automatically include the villa room
+    token,           // 👈 safe: may be null, but never undefined
   };
+
+  try {
+    const res = await fetch(`${window.location.origin}/api/requests`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (res.ok) {
+      setSubmitted(true);
+      setForm({
+        name: "",
+        roomNumber: "",
+        requestType: "cleaning",
+        message: "",
+      });
+    } else {
+      console.error("Request failed:", await res.text());
+    }
+  } catch (err) {
+    console.error("Error sending request:", err);
+  }
+};
+
 
   if (loading)
     return <p style={{ textAlign: "center", marginTop: "40px" }}>Loading...</p>;
