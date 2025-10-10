@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
+import apiBaseUrl from "../config/api";
+
 
 export default function ChatbotWidget({ roomId }) {
   const [socket, setSocket] = useState(null);
@@ -26,10 +28,8 @@ export default function ChatbotWidget({ roomId }) {
   useEffect(() => {
     if (!resolvedRoomId) return;
 
-    const newSocket = io(
-      process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"
-    );
-    setSocket(newSocket);
+    const newSocket = io(apiBaseUrl);
+setSocket(newSocket);
 
     newSocket.on("connect", () => {
       console.log("✅ Connected to chat server");

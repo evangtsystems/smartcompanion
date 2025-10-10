@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import io from "socket.io-client";
+import apiBaseUrl from "../config/api";
+
 
 export default function AdminChatDashboard() {
   const [socket, setSocket] = useState(null);
@@ -12,8 +14,8 @@ export default function AdminChatDashboard() {
 
   // 🟢 Connect to Socket.IO
   useEffect(() => {
-    const newSocket = io(process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000");
-    setSocket(newSocket);
+    const newSocket = io(apiBaseUrl);
+setSocket(newSocket);;
 
     newSocket.on("connect", () => {
       console.log("✅ Admin connected");
