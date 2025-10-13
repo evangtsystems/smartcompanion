@@ -15,6 +15,7 @@
     "cross-env": "^10.1.0",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "html5-qrcode": "^2.3.8",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.19.0",
     "next": "^14.2.33",
@@ -27,6 +28,7 @@
     "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.10",
+    "null-loader": "^4.0.1"
   }
 }

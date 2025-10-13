@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import QrScannerModal from "../src/components/QrScannerModal";
 
 export default function Home() {
   const router = useRouter();
@@ -55,6 +56,8 @@ export default function Home() {
     >
       Start Your Experience
     </button>
+
+    <QrScannerModal />
   </div>
 
   <style jsx>{`
@@ -308,6 +311,8 @@ export default function Home() {
               title: "Stay Connected",
               desc: "Your host and concierge are always one tap away.",
             },
+
+            
           ].map((item) => (
             <div
               key={item.title}
