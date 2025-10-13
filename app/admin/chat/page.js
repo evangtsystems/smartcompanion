@@ -50,6 +50,15 @@ export default function AdminChatDashboard() {
       });
     });
 
+    // ✅ Trigger Service Worker notification / vibration
+if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+  navigator.serviceWorker.controller.postMessage({
+    type: "chatMessage",
+    text: msg.text
+  });
+}
+
+
     s.on("guestMessageNotification", ({ roomId }) => {
       if (roomId !== selectedRoom) {
         setNotifications((prev) => ({
