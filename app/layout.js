@@ -1,5 +1,6 @@
 
 import Header from "../src/components/header";
+import { Toaster } from "react-hot-toast"; // ✅ Add this import
 
 export const metadata = { title: "Smart Companion" };
 
@@ -15,7 +16,11 @@ export default function RootLayout({ children }) {
       >
         <Header />
         <main style={{ padding: "20px" }}>{children}</main>
+
+        {/* ✅ Toast notification container */}
+        <Toaster position="bottom-center" toastOptions={{ duration: 2500 }} />
       </body>
     </html>
   );
 }
+

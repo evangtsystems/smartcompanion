@@ -101,6 +101,38 @@ app.prepare().then(async () => {
   // ✅ Express routes
   server.use("/api", apiRouter);
 
+  // 🧹 Delete all chat messages
+server.delete("/api/chat/delete-all", async (req, res) => {
+  try {
+    const result = await Message.deleteMany({});
+    res.json({
+      success: true,
+      message: "All chat messages deleted successfully.",
+      deletedCount: result.deletedCount,
+    });
+  } catch (err) {
+    console.error("❌ Error deleting all messages:", err);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
+// 🧩 Delete chat messages for a specific room
+server.delete("/api/chat/delete-room/:roomId", async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const result = await Message.deleteMany({ roomId });
+    res.json({
+      success: true,
+      message: `All messages deleted for room ${roomId}.`,
+      deletedCount: result.deletedCount,
+    });
+  } catch (err) {
+    console.error("❌ Error deleting room messages:", err);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
+
   // ✅ Health check for Azure
   server.get("/health", (req, res) => res.send("OK"));
 

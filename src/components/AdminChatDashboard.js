@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import io from "socket.io-client";
 import apiBaseUrl from "../config/api";
-
+import toast from "react-hot-toast";
 
 export default function AdminChatDashboard() {
   const [socket, setSocket] = useState(null);
@@ -15,25 +15,20 @@ export default function AdminChatDashboard() {
   // 🟢 Connect to Socket.IO
   useEffect(() => {
     const newSocket = io(apiBaseUrl);
-setSocket(newSocket);;
+    setSocket(newSocket);
 
     newSocket.on("connect", () => {
       console.log("✅ Admin connected");
-      newSocket.emit("adminJoin"); // mark as admin
+      newSocket.emit("adminJoin");
     });
 
-    // Receive list of rooms
     newSocket.on("roomsList", (list) => setRooms(list));
-
-    // Receive room updates dynamically
     newSocket.on("updateRooms", (list) => setRooms(list));
 
-    // When switching rooms, receive chat history
     newSocket.on("chatHistory", (history) => {
       setMessages(history);
     });
 
-    // Receive new messages live
     newSocket.on("newMessage", (msg) => {
       if (msg.roomId === activeRoom) {
         setMessages((prev) => [...prev, msg]);
@@ -43,7 +38,7 @@ setSocket(newSocket);;
     return () => newSocket.close();
   }, [activeRoom]);
 
-  // Scroll to bottom on new messages
+  // Scroll to bottom
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -70,7 +65,27 @@ setSocket(newSocket);;
     setInput("");
   };
 
-  // 🧠 Helper: convert "villa-panorea-101" → "Room 101"
+  // 🧹 Clear all chat messages
+  const handleClearAllChats = async () => {
+    if (!window.confirm("Are you sure you want to delete ALL chat history?")) return;
+
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/chat/delete-all`, { method: "DELETE" });
+      const data = await res.json();
+
+      if (data.success) {
+        toast.success(`Deleted ${data.deletedCount} chat messages`);
+        setMessages([]);
+        setRooms([]);
+      } else {
+        toast.error("Failed to delete chats");
+      }
+    } catch (err) {
+      console.error("Error deleting chats:", err);
+      toast.error("Server error");
+    }
+  };
+
   const formatRoomName = (room) => {
     if (room === "villa-panorea") return "Villa Panorea";
     if (room.startsWith("villa-panorea-")) {
@@ -89,7 +104,7 @@ setSocket(newSocket);;
         background: "#fffbee",
       }}
     >
-      {/* 🧭 Sidebar (rooms) */}
+      {/* 🧭 Sidebar */}
       <div
         style={{
           width: "260px",
@@ -103,6 +118,27 @@ setSocket(newSocket);;
         <h2 style={{ textAlign: "center", marginBottom: "15px", color: "#fff9c4" }}>
           🏡 Chats
         </h2>
+
+        {/* Clear All Chats Button */}
+        <button
+          onClick={handleClearAllChats}
+          style={{
+            background: "#c62828",
+            color: "white",
+            padding: "8px 12px",
+            border: "none",
+            borderRadius: "6px",
+            fontWeight: "bold",
+            cursor: "pointer",
+            transition: "0.2s",
+            marginBottom: "15px",
+          }}
+          onMouseEnter={(e) => (e.target.style.background = "#b71c1c")}
+          onMouseLeave={(e) => (e.target.style.background = "#c62828")}
+        >
+          🧹 Clear All Chats
+        </button>
+
         <div style={{ flex: 1, overflowY: "auto" }}>
           {rooms.length === 0 && (
             <p style={{ color: "#ccc", textAlign: "center" }}>No active chats</p>
@@ -136,7 +172,6 @@ setSocket(newSocket);;
           background: "#fffdf5",
         }}
       >
-        {/* Header */}
         <div
           style={{
             background: "#fff9c4",
@@ -151,7 +186,6 @@ setSocket(newSocket);;
             : "Select a room to start chatting"}
         </div>
 
-        {/* Chat messages */}
         <div
           style={{
             flex: 1,
@@ -168,15 +202,13 @@ setSocket(newSocket);;
               key={idx}
               style={{
                 display: "flex",
-                justifyContent:
-                  msg.sender === "host" ? "flex-end" : "flex-start",
+                justifyContent: msg.sender === "host" ? "flex-end" : "flex-start",
                 marginBottom: "10px",
               }}
             >
               <div
                 style={{
-                  background:
-                    msg.sender === "host" ? "#1f3b2e" : "#fff7b3",
+                  background: msg.sender === "host" ? "#1f3b2e" : "#fff7b3",
                   color: msg.sender === "host" ? "#fff" : "#333",
                   borderRadius: "12px",
                   padding: "10px 14px",
@@ -191,7 +223,6 @@ setSocket(newSocket);;
           <div ref={chatEndRef} />
         </div>
 
-        {/* Input */}
         {activeRoom && (
           <form
             onSubmit={sendMessage}

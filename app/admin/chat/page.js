@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import io from "socket.io-client";
-import apiBaseUrl from '../../../src/config/api';
-
+import apiBaseUrl from "../../../src/config/api";
+import toast from "react-hot-toast";
 
 export default function AdminChatDashboard() {
   const [socket, setSocket] = useState(null);
@@ -11,72 +11,59 @@ export default function AdminChatDashboard() {
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState("");
-useEffect(() => {
-  if (socket) return; // prevent duplicate connections
 
-  const s = io(apiBaseUrl, { transports: ["websocket"] });
-setSocket(s);
+  // 🟢 Socket connection
+  useEffect(() => {
+    if (socket) return;
 
-  s.on("connect", () => {
-    console.log("👑 Connected as Admin");
-    s.emit("adminJoin");
-  });
+    const s = io(apiBaseUrl, { transports: ["websocket"] });
+    setSocket(s);
 
-  s.on("roomsList", (list) => setRooms(list));
-  s.on("updateRooms", (list) => setRooms(list));
+    s.on("connect", () => {
+      console.log("👑 Connected as Admin");
+      s.emit("adminJoin");
+    });
 
-  s.on("chatHistory", (history) => setMessages(history));
+    s.on("roomsList", (list) => setRooms(list));
+    s.on("updateRooms", (list) => setRooms(list));
+    s.on("chatHistory", (history) => setMessages(history));
 
-s.on("newMessage", (msg) => {
-  setMessages((prev) => {
-    // Avoid duplicates in chat list
-    const alreadyExists = prev.some(
-      (m) =>
-        m.text === msg.text &&
-        m.sender === msg.sender &&
-        m.roomId === msg.roomId
-    );
-    if (alreadyExists) return prev;
+    s.on("newMessage", (msg) => {
+      setMessages((prev) => {
+        const alreadyExists = prev.some(
+          (m) =>
+            m.text === msg.text &&
+            m.sender === msg.sender &&
+            m.roomId === msg.roomId
+        );
+        if (alreadyExists) return prev;
 
-    // Only add to visible chat if it's the active room
-    if (msg.roomId === selectedRoom) {
-      return [...prev, msg];
-    } else {
-      // Increment notifications only for guest messages
-      if (msg.sender === "guest") {
-        setNotifications((n) => ({
-          ...n,
-          [msg.roomId]: (n[msg.roomId] || 0) + 1,
+        if (msg.roomId === selectedRoom) {
+          return [...prev, msg];
+        } else if (msg.sender === "guest") {
+          setNotifications((n) => ({
+            ...n,
+            [msg.roomId]: (n[msg.roomId] || 0) + 1,
+          }));
+        }
+        return prev;
+      });
+    });
+
+    s.on("guestMessageNotification", ({ roomId }) => {
+      if (roomId !== selectedRoom) {
+        setNotifications((prev) => ({
+          ...prev,
+          [roomId]: (prev[roomId] || 0) + 1,
         }));
       }
-      return prev;
-    }
-  });
-});
+    });
 
-s.on("guestMessageNotification", ({ roomId }) => {
-  if (roomId !== selectedRoom) {
-    setNotifications((prev) => ({
-      ...prev,
-      [roomId]: (prev[roomId] || 0) + 1,
-    }));
-  }
-});
+    return () => s.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-
-
-
-
-  
-
-  return () => {
-    s.disconnect();
-  };
-  // 👇 Notice — only run once
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, []);
-
-
+  // 🏠 Join a specific room
   const joinRoom = (roomId) => {
     if (!socket) return;
     setSelectedRoom(roomId);
@@ -84,29 +71,73 @@ s.on("guestMessageNotification", ({ roomId }) => {
     socket.emit("joinRoom", roomId);
   };
 
+  // 💬 Send message
   const sendMessage = (e) => {
-  e.preventDefault();
-  if (!message.trim() || !socket || !selectedRoom) return;
+    e.preventDefault();
+    if (!message.trim() || !socket || !selectedRoom) return;
 
-  // Create local preview immediately
-  const localMsg = {
-    roomId: selectedRoom,
-    sender: "host",
-    text: message,
-    timestamp: new Date().toISOString(),
+    const localMsg = {
+      roomId: selectedRoom,
+      sender: "host",
+      text: message,
+      timestamp: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, localMsg]);
+
+    socket.emit("sendMessage", {
+      roomId: selectedRoom,
+      sender: "host",
+      text: message,
+    });
+
+    setMessage("");
   };
-  setMessages((prev) => [...prev, localMsg]);
 
-  // Send to backend
-  socket.emit("sendMessage", {
-    roomId: selectedRoom,
-    sender: "host",
-    text: message,
-  });
+  // 🧹 Delete ALL chats
+  const clearAllChats = async () => {
+    if (!window.confirm("⚠️ Delete ALL chat history?")) return;
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/chat/delete-all`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`Deleted ${data.deletedCount} messages`);
+        setMessages([]);
+        setRooms([]);
+        setSelectedRoom(null);
+      } else {
+        toast.error("Failed to delete chats");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Server error");
+    }
+  };
 
-  setMessage("");
-};
-
+  // 🧽 Delete only selected room
+  const clearSelectedRoom = async () => {
+    if (!selectedRoom) return toast.error("No room selected");
+    if (!window.confirm(`Delete all messages in ${selectedRoom}?`)) return;
+    try {
+      const res = await fetch(
+        `${apiBaseUrl}/api/chat/delete-room/${selectedRoom}`,
+        { method: "DELETE" }
+      );
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`Cleared ${data.deletedCount} messages`);
+        setMessages([]);
+        setRooms((prev) => prev.filter((r) => r !== selectedRoom));
+        setSelectedRoom(null);
+      } else {
+        toast.error("Failed to clear this room");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Server error");
+    }
+  };
 
   return (
     <div
@@ -128,6 +159,43 @@ s.on("guestMessageNotification", ({ roomId }) => {
         }}
       >
         <h2 style={{ textAlign: "center", color: "#1f3b2e" }}>💬 Active Rooms</h2>
+
+        {/* 🔘 Buttons */}
+        <div style={{ marginTop: "10px", marginBottom: "15px" }}>
+          <button
+            onClick={clearAllChats}
+            style={{
+              width: "100%",
+              padding: "8px",
+              background: "#c62828",
+              color: "#fff",
+              border: "none",
+              borderRadius: "6px",
+              fontWeight: "bold",
+              cursor: "pointer",
+              marginBottom: "8px",
+            }}
+          >
+            🧹 Clear All Chats
+          </button>
+          <button
+            onClick={clearSelectedRoom}
+            style={{
+              width: "100%",
+              padding: "8px",
+              background: "#1976d2",
+              color: "#fff",
+              border: "none",
+              borderRadius: "6px",
+              fontWeight: "bold",
+              cursor: "pointer",
+            }}
+          >
+            🧽 Clear This Room
+          </button>
+        </div>
+
+        {/* Room List */}
         {rooms.length === 0 ? (
           <p style={{ textAlign: "center", color: "#555" }}>No rooms yet</p>
         ) : (
