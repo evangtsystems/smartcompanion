@@ -136,7 +136,9 @@ server.delete("/api/chat/delete-room/:roomId", async (req, res) => {
   // ✅ Health check for Azure
   server.get("/health", (req, res) => res.send("OK"));
 
-  server.use((req, res) => handle(req, res));
+  // ✅ Let Next.js handle *everything else*
+// ✅ Express 5-compatible catch-all for all routes
+server.all(/.*/, (req, res) => nextHandler(req, res));
 
 
 
