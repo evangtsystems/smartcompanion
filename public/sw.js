@@ -1,6 +1,6 @@
 // ✅ Smart Companion Service Worker
 
-const CACHE_NAME = "smart-companion-v1";
+
 const ASSETS_TO_CACHE = [
   "/",
   "/manifest.json",
@@ -8,46 +8,70 @@ const ASSETS_TO_CACHE = [
   "/icons/icon-512.png"
 ];
 
-// 🟢 INSTALL — cache core assets
+// ✅ Smart Companion Service Worker (auto-update + safe caching)
+
+const CACHE_VERSION = "v2-" + new Date().toISOString().slice(0, 10); // daily version tag
+const CACHE_NAME = `smart-companion-${CACHE_VERSION}`;
+const ASSETS = [
+  "/",
+  "/manifest.json",
+  "/icons/icon-192.png",
+  "/icons/icon-512.png",
+];
+
+// 🟢 INSTALL — pre-cache core files
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS_TO_CACHE))
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
   );
-  console.log("✅ [SW] Installed");
   self.skipWaiting();
 });
 
-// 🟡 ACTIVATE — clear old caches
+// 🟡 ACTIVATE — delete old caches immediately
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+      Promise.all(keys.map((key) => {
+        if (key !== CACHE_NAME) return caches.delete(key);
+      }))
     )
   );
-  console.log("♻️ [SW] Activated");
   self.clients.claim();
 });
 
-// 🔵 FETCH — serve cached files first, then fallback to network
+// 🔵 FETCH — use network first for HTML (to avoid stale layouts/videos)
 self.addEventListener("fetch", (event) => {
+  const req = event.request;
+
+  // Always fetch latest HTML from network (avoid cached shell)
+  if (req.mode === "navigate") {
+    event.respondWith(
+      fetch(req).catch(() => caches.match("/"))
+    );
+    return;
+  }
+
+  // Cache-first for static assets (icons, manifest, etc.)
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request))
+    caches.match(req).then(
+      (cached) => cached || fetch(req).then((res) => {
+        const clone = res.clone();
+        if (req.url.startsWith(self.location.origin)) {
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
+        }
+        return res;
+      })
+    )
   );
 });
 
-// 🔔 VIBRATION / NOTIFICATION TRIGGER
-// 👉 This example vibrates if a "chatMessage" event is received via postMessage.
+// 🔔 Notification hook (optional)
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "chatMessage") {
-    console.log("💬 [SW] Chat message received:", event.data.text);
-
-    // Try vibration (mobile devices only)
-    if (self.registration && self.registration.showNotification) {
-      self.registration.showNotification("New message", {
-        body: event.data.text,
-        icon: "/icons/icon-192.png",
-        vibrate: [200, 100, 200],
-      });
-    }
+    self.registration.showNotification("New message", {
+      body: event.data.text,
+      icon: "/icons/icon-192.png",
+      vibrate: [200, 100, 200],
+    });
   }
 });

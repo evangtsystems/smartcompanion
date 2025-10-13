@@ -138,6 +138,8 @@ server.delete("/api/chat/delete-room/:roomId", async (req, res) => {
 
   server.use((req, res) => handle(req, res));
 
+
+
   // ✅ Start server
   const port = process.env.PORT || 8080; // Azure uses 8080 internally
   httpServer.listen(port, () => {

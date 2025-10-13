@@ -7,6 +7,10 @@ import QrScannerModal from "../src/components/QrScannerModal";
 export default function Home() {
   const router = useRouter();
 
+
+  // 🧹 TEMP FIX — clear old PWA caches & service workers
+  
+
   useEffect(() => {
     document.querySelectorAll(".fade").forEach((el, i) => {
       setTimeout(() => {
@@ -50,16 +54,26 @@ export default function Home() {
   {/* Background Video */}
   <div className="video-container">
    <video
+  className="hero-video"
   playsInline
   autoPlay
   muted
   loop
-  preload="auto"
-  className="hero-video"
-  poster="/fallback.jpg"
+  preload="metadata"
+ 
+  onCanPlay={(e) => e.target.play().catch(() => {})}
+  style={{
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    backgroundColor: "#1f3b2e",
+  }}
 >
   <source src="/smartcompanion-video.mp4" type="video/mp4" />
+  <source src="/smartcompanion-video.webm" type="video/webm" />
 </video>
+
+
 
   </div>
 
