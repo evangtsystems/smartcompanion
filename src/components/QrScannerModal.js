@@ -18,7 +18,14 @@ export default function QrScannerModal() {
         (decodedText) => {
           toast.success("QR detected — redirecting...");
           setOpen(false);
-          window.location.href = decodedText;
+         // ✅ Normalize scanned link (works for both absolute + relative URLs)
+    let url = decodedText.trim();
+    if (!url.startsWith("http")) {
+      url = `${window.location.origin}${url.startsWith("/") ? "" : "/"}${url}`;
+    }
+
+    // ✅ Redirect safely
+    window.location.href = url;
         },
         (error) => {
           console.warn("QR scan error:", error);
