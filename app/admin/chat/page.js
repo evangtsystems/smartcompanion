@@ -28,6 +28,7 @@ export default function AdminChatDashboard() {
     s.on("updateRooms", (list) => setRooms(list));
     s.on("chatHistory", (history) => setMessages(history));
 
+    // 💬 Handle new message from any room
     s.on("newMessage", (msg) => {
       setMessages((prev) => {
         const alreadyExists = prev.some(
@@ -48,16 +49,10 @@ export default function AdminChatDashboard() {
         }
         return prev;
       });
+
+      // ✅ Trigger Service Worker notification / vibration
+      
     });
-
-    // ✅ Trigger Service Worker notification / vibration
-if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-  navigator.serviceWorker.controller.postMessage({
-    type: "chatMessage",
-    text: msg.text
-  });
-}
-
 
     s.on("guestMessageNotification", ({ roomId }) => {
       if (roomId !== selectedRoom) {
@@ -70,7 +65,7 @@ if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
 
     return () => s.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [selectedRoom]);
 
   // 🏠 Join a specific room
   const joinRoom = (roomId) => {
@@ -169,7 +164,6 @@ if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
       >
         <h2 style={{ textAlign: "center", color: "#1f3b2e" }}>💬 Active Rooms</h2>
 
-        {/* 🔘 Buttons */}
         <div style={{ marginTop: "10px", marginBottom: "15px" }}>
           <button
             onClick={clearAllChats}
@@ -204,7 +198,6 @@ if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
           </button>
         </div>
 
-        {/* Room List */}
         {rooms.length === 0 ? (
           <p style={{ textAlign: "center", color: "#555" }}>No rooms yet</p>
         ) : (
@@ -307,7 +300,6 @@ if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
           )}
         </div>
 
-        {/* Input */}
         {selectedRoom && (
           <form
             onSubmit={sendMessage}
