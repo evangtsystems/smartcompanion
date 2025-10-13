@@ -16,6 +16,21 @@ export default function Home() {
     });
   }, []);
 
+  useEffect(() => {
+  const video = document.querySelector(".hero-video");
+  if (video) {
+    const playPromise = video.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(() => {
+        // Some browsers require explicit interaction first
+        video.muted = true;
+        video.play().catch(() => {});
+      });
+    }
+  }
+}, []);
+
+
   return (
     <div
       style={{
@@ -34,9 +49,18 @@ export default function Home() {
 
   {/* Background Video */}
   <div className="video-container">
-    <video autoPlay loop muted playsInline preload="auto" className="hero-video">
-      <source src="/smartcompanion-video.mp4" type="video/mp4" />
-    </video>
+   <video
+  playsInline
+  autoPlay
+  muted
+  loop
+  preload="auto"
+  className="hero-video"
+  poster="/fallback.jpg"
+>
+  <source src="/smartcompanion-video.mp4" type="video/mp4" />
+</video>
+
   </div>
 
   {/* Overlay */}
