@@ -23,6 +23,46 @@ export default function ChatbotWidget({ roomId }) {
     }
   }, [roomId]);
 
+
+  // ✅ Add this function inside ChatbotWidget (before the Socket.IO useEffect)
+async function registerPush(roomId) {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+  const reg = await navigator.serviceWorker.ready;
+
+  // Ask for permission
+  let permission = Notification.permission;
+  if (permission !== "granted") permission = await Notification.requestPermission();
+  if (permission !== "granted") return;
+
+  // Convert VAPID key
+  const vapidKey = "BI-FoW0_e5vandAAet46lR_CfzIOJxVVlMV-ArwBJNJExjS36_odKybOf9dgYjhi12JvgN4Q6yhnVkDKjBvea-0";
+  const convertedKey = Uint8Array.from(
+    atob(vapidKey.replace(/_/g, "/").replace(/-/g, "+")),
+    (c) => c.charCodeAt(0)
+  );
+
+  // Create subscription if needed
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) {
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: convertedKey,
+    });
+  }
+
+  // Send to backend
+  try {
+    await fetch(`${apiBaseUrl}/api/push/subscribe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ roomId, subscription: sub.toJSON() }),
+    });
+    console.log("✅ Push subscription registered for room:", roomId);
+  } catch (err) {
+    console.error("❌ Error registering push subscription:", err);
+  }
+}
+
   // 🟢 Connect to Socket.IO server once per room
   useEffect(() => {
     if (!resolvedRoomId) return;
@@ -31,9 +71,11 @@ export default function ChatbotWidget({ roomId }) {
     setSocket(s);
 
     s.on("connect", () => {
-      console.log("✅ Guest connected to chat");
-      s.emit("joinRoom", resolvedRoomId);
-    });
+  console.log("✅ Guest connected to chat");
+  s.emit("joinRoom", resolvedRoomId);
+  registerPush(resolvedRoomId); // 🟢 ADD THIS LINE
+});
+
 
     s.on("chatHistory", (history) => {
       setMessages(history);

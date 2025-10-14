@@ -14,12 +14,13 @@ webpush.setVapidDetails(
 
 // ✅ Replace these values with what you have in MongoDB (from PushSubscription)
 const subscription = {
-  endpoint: "https://fcm.googleapis.com/fcm/send/eTkMNSoE9ik:APA91bGmTTBjXxLeIGlqNCKeqs1S1o_Lqu5nypMb3Y1k7tM5p-MDrVB70L86eCB5d2QMnuzja6o633Ffqbup7gU7Ey5c27xGrk5RxAt4Ep5xImVgSrTHqSPUfV2f7pqsMfoEZM4kiZJI",
+  endpoint: "https://fcm.googleapis.com/fcm/send/cTHD5GfRgL4:APA91bGwe50nB-QpnV8iqt88wuftgnLazzKIKshCdDQICIfdxHNxB1T_XuabAAHIEZAff0X5Ii58kPfY9RQANTWPVBObzSE3wgHxJfEYOQ2kh8vHfvf4u3RQQlvZZHtnbwtOLAOfxI0i",
   keys: {
-    p256dh: "BPSh5d7V_8-uJueKOgT0qgH-7fTSVjuFoAODyUkIXr7_HXnVNiv3BMeo5sKKPTcnhBtvG0M3XEUA_yx4gmkq6iE",
-    auth: "_blTDK-Y65AS6keQ0xMFwA",
-  },
+    p256dh: "BFdjDFCLY8uPiTcJf4WQnTEsuSjyH20mWAssFCXzT-I6X_RjWnfAIdhiPuIMOpcOixkQQ3JS0y3kO9s1N7Be6A4",
+    auth: "W-Optmyi8nt3HgScfPdBHg"
+  }
 };
+
 
 // ✅ Message payload
 const payload = JSON.stringify({
