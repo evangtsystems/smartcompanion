@@ -1,25 +1,23 @@
-// ✅ Smart Companion Service Worker
+// ✅ Smart Companion Service Worker (stable version)
 
-
-const ASSETS_TO_CACHE = [
-  "/",
-  "/manifest.json",
-  "/icons/icon-192.png",
-  "/icons/icon-512.png"
-];
-
-// ✅ Smart Companion Service Worker (auto-update + safe caching)
-
-const CACHE_VERSION = "v2-" + new Date().toISOString().slice(0, 10); // daily version tag
+const CACHE_VERSION = "v2"; // static cache version
 const CACHE_NAME = `smart-companion-${CACHE_VERSION}`;
+
 const ASSETS = [
-  "/",
+  "/", // ensure shell is cached
   "/manifest.json",
+  // include all manifest icons
+  "/icons/icon-72.png",
+  "/icons/icon-96.png",
+  "/icons/icon-128.png",
+  "/icons/icon-144.png",
+  "/icons/icon-152.png",
   "/icons/icon-192.png",
+  "/icons/icon-384.png",
   "/icons/icon-512.png",
 ];
 
-// 🟢 INSTALL — pre-cache core files
+// 🟢 INSTALL — pre-cache essential files
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
@@ -27,23 +25,25 @@ self.addEventListener("install", (event) => {
   self.skipWaiting();
 });
 
-// 🟡 ACTIVATE — delete old caches immediately
+// 🟡 ACTIVATE — clean up old caches
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.map((key) => {
-        if (key !== CACHE_NAME) return caches.delete(key);
-      }))
+      Promise.all(
+        keys.map((key) => {
+          if (key !== CACHE_NAME) return caches.delete(key);
+        })
+      )
     )
   );
   self.clients.claim();
 });
 
-// 🔵 FETCH — use network first for HTML (to avoid stale layouts/videos)
+// 🔵 FETCH — network-first for pages, cache-first for static assets
 self.addEventListener("fetch", (event) => {
   const req = event.request;
 
-  // Always fetch latest HTML from network (avoid cached shell)
+  // HTML: always try network first
   if (req.mode === "navigate") {
     event.respondWith(
       fetch(req).catch(() => caches.match("/"))
@@ -51,21 +51,23 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Cache-first for static assets (icons, manifest, etc.)
+  // Other files: cache-first
   event.respondWith(
     caches.match(req).then(
-      (cached) => cached || fetch(req).then((res) => {
-        const clone = res.clone();
-        if (req.url.startsWith(self.location.origin)) {
-          caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
-        }
-        return res;
-      })
+      (cached) =>
+        cached ||
+        fetch(req).then((res) => {
+          const clone = res.clone();
+          if (req.url.startsWith(self.location.origin)) {
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
+          }
+          return res;
+        })
     )
   );
 });
 
-// 🔔 Notification hook (optional)
+// 🔔 Notification hook for chat messages
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "chatMessage") {
     self.registration.showNotification("New message", {
