@@ -12,7 +12,7 @@ export default function ChatbotWidget({ roomId }) {
   const [resolvedRoomId, setResolvedRoomId] = useState(null);
   const chatEndRef = useRef(null);
 
-  // 🏠 Resolve the room ID from URL (?room=101 etc.)
+  // 🏠 Resolve the room ID
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const room = params.get("room");
@@ -42,11 +42,21 @@ export default function ChatbotWidget({ roomId }) {
     s.on("newMessage", (msg) => {
       setMessages((prev) => [...prev, msg]);
 
-      // 🔔 Notify guest if chat closed
-      if (msg.sender !== "guest" && !showChat) {
+      // 🔔 Play notification sound only for host → guest messages
+      if (msg.sender !== "guest") {
+        try {
+  const audio = new Audio("/smile-ringtone.mp3");
+  audio.play().catch(() => {
+    const fallback = new Audio("/smile-ringtone.ogg");
+    fallback.play().catch(() => {});
+  });
+} catch (err) {
+  console.warn("Sound play failed:", err);
+}
+
+
+        // 📳 Optional vibration
         if ("vibrate" in navigator) navigator.vibrate([200, 100, 200]);
-        const audio = new Audio("/notify.mp3");
-        audio.play().catch(() => {});
       }
     });
 

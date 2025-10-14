@@ -77,3 +77,34 @@ self.addEventListener("message", (event) => {
     });
   }
 });
+
+self.addEventListener("push", (event) => {
+  const data = event.data ? event.data.json() : {};
+  const title = data.title || "Smart Companion";
+  const body = data.body || "You have a new message";
+  const url = data.url || "/";
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-72.png",
+      vibrate: [200, 100, 200],
+      data: { url },
+      actions: [{ action: "open", title: "Open" }],
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || "/";
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clis) => {
+      const client = clis.find((c) => c.url.includes(url));
+      if (client) return client.focus();
+      return clients.openWindow(url);
+    })
+  );
+});
+

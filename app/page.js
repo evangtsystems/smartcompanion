@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import QrScannerModal from "../src/components/QrScannerModal";
+import InstallAppButton from "../src/components/InstallAppButton";
 
 export default function Home() {
   const router = useRouter();
@@ -96,6 +97,7 @@ export default function Home() {
     </button>
 
     <QrScannerModal />
+    <InstallAppButton />
   </div>
 
   <style jsx>{`

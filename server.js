@@ -7,8 +7,24 @@ import cors from "cors";
 import http from "http";
 import { Server as SocketIOServer } from "socket.io";
 import apiRouter from "./src/routes/index.js";
+import webpush from "web-push";
+import PushSubscription from "./src/models/PushSubscription.js";
+
 
 dotenv.config();
+
+// ✅ Web Push setup
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    process.env.VAPID_SUBJECT || "mailto:you@example.com",
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+  console.log("✅ Web Push configured");
+} else {
+  console.warn("⚠️ VAPID keys not found in .env — push notifications disabled");
+}
+
 
 const dev = process.env.NODE_ENV !== "production";
 const app = next({ dev });
@@ -53,6 +69,36 @@ app.prepare().then(async () => {
   const Message =
     mongoose.models.Message || mongoose.model("Message", messageSchema);
 
+    // ✅ Helper: send web push to all guests in a room
+async function sendPushToRoom(roomId, { title, body, url }) {
+  try {
+    const subs = await PushSubscription.find({ roomId });
+    const payload = JSON.stringify({ title, body, url });
+
+    for (const sub of subs) {
+      try {
+        await webpush.sendNotification(
+          {
+            endpoint: sub.endpoint,
+            keys: sub.keys,
+          },
+          payload
+        );
+      } catch (err) {
+        // remove expired subscriptions
+        if (err.statusCode === 410 || err.statusCode === 404) {
+          await PushSubscription.deleteOne({ endpoint: sub.endpoint });
+        } else {
+          console.error("❌ Push send error:", err.statusCode, err.body || err);
+        }
+      }
+    }
+  } catch (e) {
+    console.error("❌ sendPushToRoom error:", e);
+  }
+}
+
+
   // ✅ Socket.IO event handlers
   io.on("connection", (socket) => {
     console.log("🟢 New user connected:", socket.id);
@@ -81,17 +127,27 @@ app.prepare().then(async () => {
 
     // 💬 Handle new message
     socket.on("sendMessage", async ({ roomId, sender, text }) => {
-      if (!text || !roomId) return;
-      const msg = await Message.create({ roomId, sender, text });
-      io.to(roomId).emit("newMessage", msg);
-      console.log(`💬 [${roomId}] ${sender}: ${text}`);
+  if (!text || !roomId) return;
+  const msg = await Message.create({ roomId, sender, text });
+  io.to(roomId).emit("newMessage", msg);
+  console.log(`💬 [${roomId}] ${sender}: ${text}`);
 
-      if (sender === "guest") {
-        io.to("admins").emit("guestMessageNotification", { roomId });
-        const rooms = await Message.distinct("roomId");
-        io.to("admins").emit("updateRooms", rooms);
-      }
+  if (sender === "guest") {
+    io.to("admins").emit("guestMessageNotification", { roomId });
+    const rooms = await Message.distinct("roomId");
+    io.to("admins").emit("updateRooms", rooms);
+  }
+
+  // ✅ NEW: if host sent a message → send push notification
+  if (sender === "host") {
+    await sendPushToRoom(roomId, {
+      title: "New message from your host",
+      body: text,
+      url: `/guest/chat?room=${encodeURIComponent(roomId)}`,
     });
+  }
+});
+
 
     socket.on("disconnect", () => {
       console.log("🔴 User disconnected:", socket.id);
@@ -135,6 +191,36 @@ server.delete("/api/chat/delete-room/:roomId", async (req, res) => {
 
   // ✅ Health check for Azure
 server.get("/health", (req, res) => res.send("OK"));
+
+// ✅ Push Subscription API endpoint
+server.post("/api/push/subscribe", async (req, res) => {
+  try {
+    const { roomId, subscription } = req.body;
+    if (!roomId || !subscription) {
+      return res.status(400).json({ success: false, message: "Missing data" });
+    }
+
+    // Upsert (avoid duplicates)
+    await PushSubscription.updateOne(
+      { roomId, endpoint: subscription.endpoint },
+      {
+        $set: {
+          roomId,
+          endpoint: subscription.endpoint,
+          keys: subscription.keys,
+        },
+      },
+      { upsert: true }
+    );
+
+    console.log(`🔔 Push subscription saved for room: ${roomId}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Error saving subscription:", err);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
 
 // ✅ Let Next.js handle *everything else*
 server.all(/.*/, (req, res) => handle(req, res));

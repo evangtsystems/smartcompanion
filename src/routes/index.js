@@ -4,6 +4,8 @@ import villaRoutes from "./villaRoutes.js";
 import serviceRequestRoutes from "./serviceRequestRoutes.js";
 import ownerRoutes from "./ownerRoutes.js";
 import roomsRouter from "./rooms.js";
+import pushRouter from "./push.js";
+
 
 const router = express.Router();
 
@@ -17,5 +19,6 @@ router.use("/villas", villaRoutes);
 router.use("/requests", serviceRequestRoutes);
 router.use("/owner", ownerRoutes);
 router.use("/rooms", roomsRouter);
+router.use("/push", pushRouter);
 
 export default router;

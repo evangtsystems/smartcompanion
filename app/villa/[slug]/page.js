@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import ChatbotWidget from "../../../src/components/ChatbotWidget";
+import { registerPush } from "../../../src/utils/push";
+import apiBaseUrl from "../../../src/config/api";
+
 
 
 
@@ -129,7 +132,14 @@ useEffect(() => {
     console.error("Error sending request:", err);
   }
 };
-
+ useEffect(() => {
+  if (verified && slug) {
+    const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    if (vapidKey) {
+      registerPush(slug, vapidKey, apiBaseUrl);
+    }
+  }
+}, [verified, slug]);
 
   if (loading)
     return <p style={{ textAlign: "center", marginTop: "40px" }}>Loading...</p>;
@@ -137,6 +147,9 @@ useEffect(() => {
     return (
       <p style={{ textAlign: "center", marginTop: "40px" }}>Villa not found.</p>
     );
+
+   
+
 
   return (
     <div

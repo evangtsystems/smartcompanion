@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import io from "socket.io-client";
 import apiBaseUrl from "../../../src/config/api";
 import toast from "react-hot-toast";
+import { registerPush } from "../../../src/utils/push.js";
+
 
 export default function AdminChatDashboard() {
   const socketRef = useRef(null); // ✅ persistent socket
@@ -72,6 +74,9 @@ export default function AdminChatDashboard() {
       socketRef.current = null;
     };
   }, []); // ✅ run once only
+
+  
+
 
   // 🏠 Join room
   const joinRoom = (roomId) => {
