@@ -1,23 +1,23 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import io from "socket.io-client";
 import apiBaseUrl from "../../../src/config/api";
 import toast from "react-hot-toast";
 
 export default function AdminChatDashboard() {
-  const [socket, setSocket] = useState(null);
+  const socketRef = useRef(null); // ✅ persistent socket
   const [rooms, setRooms] = useState([]);
   const [notifications, setNotifications] = useState({});
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState("");
 
-  // 🟢 Socket connection
+  // ✅ Stable socket connection
   useEffect(() => {
-    if (socket) return;
+    if (socketRef.current) return;
 
     const s = io(apiBaseUrl, { transports: ["websocket"] });
-    setSocket(s);
+    socketRef.current = s;
 
     s.on("connect", () => {
       console.log("👑 Connected as Admin");
@@ -28,7 +28,6 @@ export default function AdminChatDashboard() {
     s.on("updateRooms", (list) => setRooms(list));
     s.on("chatHistory", (history) => setMessages(history));
 
-    // 💬 Handle new message from any room
     s.on("newMessage", (msg) => {
       setMessages((prev) => {
         const alreadyExists = prev.some(
@@ -50,8 +49,13 @@ export default function AdminChatDashboard() {
         return prev;
       });
 
-      // ✅ Trigger Service Worker notification / vibration
-      
+      // ✅ Service Worker notification hook
+      if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: "chatMessage",
+          text: msg.text,
+        });
+      }
     });
 
     s.on("guestMessageNotification", ({ roomId }) => {
@@ -63,12 +67,15 @@ export default function AdminChatDashboard() {
       }
     });
 
-    return () => s.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedRoom]);
+    return () => {
+      s.disconnect();
+      socketRef.current = null;
+    };
+  }, []); // ✅ run once only
 
-  // 🏠 Join a specific room
+  // 🏠 Join room
   const joinRoom = (roomId) => {
+    const socket = socketRef.current;
     if (!socket) return;
     setSelectedRoom(roomId);
     setNotifications((prev) => ({ ...prev, [roomId]: 0 }));
@@ -78,6 +85,7 @@ export default function AdminChatDashboard() {
   // 💬 Send message
   const sendMessage = (e) => {
     e.preventDefault();
+    const socket = socketRef.current;
     if (!message.trim() || !socket || !selectedRoom) return;
 
     const localMsg = {
@@ -97,7 +105,7 @@ export default function AdminChatDashboard() {
     setMessage("");
   };
 
-  // 🧹 Delete ALL chats
+  // 🧹 Delete all chats
   const clearAllChats = async () => {
     if (!window.confirm("⚠️ Delete ALL chat history?")) return;
     try {
@@ -119,7 +127,7 @@ export default function AdminChatDashboard() {
     }
   };
 
-  // 🧽 Delete only selected room
+  // 🧽 Delete selected room
   const clearSelectedRoom = async () => {
     if (!selectedRoom) return toast.error("No room selected");
     if (!window.confirm(`Delete all messages in ${selectedRoom}?`)) return;

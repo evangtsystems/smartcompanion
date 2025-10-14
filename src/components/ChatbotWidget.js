@@ -3,17 +3,16 @@ import { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
 import apiBaseUrl from "../config/api";
 
-
 export default function ChatbotWidget({ roomId }) {
   const [socket, setSocket] = useState(null);
   const [showChat, setShowChat] = useState(false);
   const [showHint, setShowHint] = useState(true);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
-  const [resolvedRoomId, setResolvedRoomId] = useState("villa-panorea");
+  const [resolvedRoomId, setResolvedRoomId] = useState(null);
   const chatEndRef = useRef(null);
 
-  // 🏠 Resolve the room ID (supports ?room=101 etc.)
+  // 🏠 Resolve the room ID from URL (?room=101 etc.)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const room = params.get("room");
@@ -24,63 +23,63 @@ export default function ChatbotWidget({ roomId }) {
     }
   }, [roomId]);
 
-  // 🟢 Connect to Socket.IO server
+  // 🟢 Connect to Socket.IO server once per room
   useEffect(() => {
     if (!resolvedRoomId) return;
 
-    const newSocket = io(apiBaseUrl);
-setSocket(newSocket);
+    const s = io(apiBaseUrl, { transports: ["websocket"] });
+    setSocket(s);
 
-    newSocket.on("connect", () => {
-      console.log("✅ Connected to chat server");
-      newSocket.emit("joinRoom", resolvedRoomId);
+    s.on("connect", () => {
+      console.log("✅ Guest connected to chat");
+      s.emit("joinRoom", resolvedRoomId);
     });
 
-    newSocket.on("chatHistory", (history) => {
+    s.on("chatHistory", (history) => {
       setMessages(history);
     });
 
-    newSocket.on("newMessage", (msg) => {
-  setMessages((prev) => [...prev, msg]);
+    s.on("newMessage", (msg) => {
+      setMessages((prev) => [...prev, msg]);
 
-  // 🔔 Notify guest only if the chat is currently closed
-  if (msg.sender !== "guest" && !showChat) {
-    // 📳 Vibrate on mobile
-    if ("vibrate" in navigator) navigator.vibrate([200, 100, 200]);
+      // 🔔 Notify guest if chat closed
+      if (msg.sender !== "guest" && !showChat) {
+        if ("vibrate" in navigator) navigator.vibrate([200, 100, 200]);
+        const audio = new Audio("/notify.mp3");
+        audio.play().catch(() => {});
+      }
+    });
 
-    // 🔊 Optional short notification sound
-    const audio = new Audio("/notify.mp3");
-    audio.play().catch(() => {});
-  }
-});
-
-
-    return () => newSocket.close();
+    return () => {
+      s.removeAllListeners();
+      s.disconnect();
+    };
   }, [resolvedRoomId]);
 
-  // Scroll to bottom when messages update
+  // 🔽 Auto-scroll to latest message
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Auto-hide hint after 5s
+  // ⏳ Hide tooltip after 5s
   useEffect(() => {
-    const timer = setTimeout(() => setShowHint(false), 5000);
-    return () => clearTimeout(timer);
+    const t = setTimeout(() => setShowHint(false), 5000);
+    return () => clearTimeout(t);
   }, []);
 
-  // 📨 Send message
+  // ✉️ Send message
   const sendMessage = (e) => {
     e.preventDefault();
     if (!input.trim() || !socket) return;
 
-    const messageData = {
+    const msg = {
       roomId: resolvedRoomId,
       sender: "guest",
       text: input.trim(),
     };
 
-    socket.emit("sendMessage", messageData);
+    socket.emit("sendMessage", msg);
+    setMessages((prev) => [...prev, msg]);
     setInput("");
   };
 
@@ -107,7 +106,6 @@ setSocket(newSocket);
             fontSize: "0.9rem",
             color: "#1f3b2e",
             boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
-            animation: "fadeOut 3s forwards",
           }}
         >
           ☁️ Need help? Tap me!
@@ -130,21 +128,8 @@ setSocket(newSocket);
             alignItems: "center",
             cursor: "pointer",
             transition: "transform 0.25s ease, box-shadow 0.3s ease",
-            animation: "pulseGlow 1.5s ease-in-out 3, bounceIn 0.6s ease-out",
-            border: "2px solid #fff3b0",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = "scale(1.1)";
-            e.currentTarget.style.boxShadow =
-              "0 10px 25px rgba(255, 222, 0, 0.5)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "scale(1)";
-            e.currentTarget.style.boxShadow =
-              "0 8px 20px rgba(0,0,0,0.25), inset 0 -2px 4px rgba(0,0,0,0.1)";
           }}
         >
-          {/* Two Chat Clouds Icon (white) */}
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="34"
@@ -157,7 +142,7 @@ setSocket(newSocket);
         </div>
       )}
 
-      {/* 🪟 Chat Window */}
+      {/* Chat Window */}
       {showChat && (
         <div
           style={{
@@ -169,8 +154,6 @@ setSocket(newSocket);
             display: "flex",
             flexDirection: "column",
             overflow: "hidden",
-            position: "relative",
-            animation: "popUp 0.3s ease forwards",
           }}
         >
           {/* Header */}
@@ -181,13 +164,13 @@ setSocket(newSocket);
               textAlign: "center",
               fontWeight: "700",
               color: "#1f3b2e",
-              letterSpacing: "0.5px",
               fontSize: "1rem",
               position: "relative",
             }}
           >
             💬 Chat with Host
             <span
+              onClick={() => setShowChat(false)}
               style={{
                 position: "absolute",
                 right: "12px",
@@ -196,15 +179,13 @@ setSocket(newSocket);
                 cursor: "pointer",
                 color: "#1f3b2e",
               }}
-              onClick={() => setShowChat(false)}
             >
               ×
             </span>
           </div>
 
-          {/* Chat Messages */}
+          {/* Messages */}
           <div
-            id="chat-content"
             style={{
               flex: 1,
               padding: "12px",
@@ -212,59 +193,40 @@ setSocket(newSocket);
               background: "#fffdf2",
             }}
           >
-            {messages.map((msg, idx) => {
-  const isGuest = msg.sender === "guest";
-  return (
-    <div
-      key={idx}
-      style={{
-        display: "flex",
-        justifyContent: isGuest ? "flex-end" : "flex-start",
-        marginBottom: "10px",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: isGuest ? "flex-end" : "flex-start",
-        }}
-      >
-        <div
-          style={{
-            background: isGuest ? "#4caf50" : "#c9be60ff",
-            color: isGuest ? "#fff" : "#222",
-            borderRadius: isGuest
-              ? "15px 15px 0 15px"
-              : "15px 15px 15px 0",
-            padding: "8px 12px",
-            maxWidth: "75%",
-            wordWrap: "break-word",
-            fontSize: "0.9rem",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-          }}
-        >
-          {msg.text}
-        </div>
-        <small
-          style={{
-            color: "#535353ff",
-            fontSize: "0.7rem",
-            marginTop: "3px",
-            paddingRight: isGuest ? "4px" : "0",
-          }}
-        >
-          {isGuest ? "You" : "Host"}
-        </small>
-      </div>
-    </div>
-  );
-})}
-
+            {messages.map((msg, i) => {
+              const isGuest = msg.sender === "guest";
+              return (
+                <div
+                  key={i}
+                  style={{
+                    display: "flex",
+                    justifyContent: isGuest ? "flex-end" : "flex-start",
+                    marginBottom: "10px",
+                  }}
+                >
+                  <div
+                    style={{
+                      background: isGuest ? "#4caf50" : "#fff7b3",
+                      color: isGuest ? "#fff" : "#333",
+                      borderRadius: isGuest
+                        ? "15px 15px 0 15px"
+                        : "15px 15px 15px 0",
+                      padding: "8px 12px",
+                      maxWidth: "75%",
+                      wordWrap: "break-word",
+                      fontSize: "0.9rem",
+                      boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                    }}
+                  >
+                    {msg.text}
+                  </div>
+                </div>
+              );
+            })}
             <div ref={chatEndRef} />
           </div>
 
-          {/* Input Area */}
+          {/* Input */}
           <form
             onSubmit={sendMessage}
             style={{
@@ -275,7 +237,6 @@ setSocket(newSocket);
             }}
           >
             <input
-              name="message"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Type your message..."
@@ -306,22 +267,6 @@ setSocket(newSocket);
           </form>
         </div>
       )}
-
-      {/* Animations */}
-      <style jsx>{`
-        @keyframes pulseGlow {
-          0%, 100% { transform: scale(1); box-shadow: 0 0 0 rgba(255, 223, 64, 0); }
-          50% { transform: scale(1.1); box-shadow: 0 0 25px rgba(255, 223, 64, 0.8); }
-        }
-        @keyframes fadeOut {
-          0% { opacity: 1; transform: translateY(0); }
-          100% { opacity: 0; transform: translateY(10px); }
-        }
-        @keyframes popUp {
-          0% { transform: scale(0.8); opacity: 0; }
-          100% { transform: scale(1); opacity: 1; }
-        }
-      `}</style>
     </div>
   );
 }

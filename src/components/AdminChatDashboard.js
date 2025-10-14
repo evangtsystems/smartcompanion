@@ -14,29 +14,30 @@ export default function AdminChatDashboard() {
 
   // 🟢 Connect to Socket.IO
   useEffect(() => {
-    const newSocket = io(apiBaseUrl);
-    setSocket(newSocket);
+  const newSocket = io(apiBaseUrl);
+  setSocket(newSocket);
 
-    newSocket.on("connect", () => {
-      console.log("✅ Admin connected");
-      newSocket.emit("adminJoin");
-    });
+  newSocket.on("connect", () => {
+    console.log("✅ Admin connected");
+    newSocket.emit("adminJoin");
+  });
 
-    newSocket.on("roomsList", (list) => setRooms(list));
-    newSocket.on("updateRooms", (list) => setRooms(list));
+  newSocket.on("roomsList", (list) => setRooms(list));
+  newSocket.on("updateRooms", (list) => setRooms(list));
 
-    newSocket.on("chatHistory", (history) => {
-      setMessages(history);
-    });
+  newSocket.on("chatHistory", (history) => {
+    setMessages(history);
+  });
 
-    newSocket.on("newMessage", (msg) => {
-      if (msg.roomId === activeRoom) {
-        setMessages((prev) => [...prev, msg]);
-      }
-    });
+  newSocket.on("newMessage", (msg) => {
+    if (msg.roomId === activeRoom) {
+      setMessages((prev) => [...prev, msg]);
+    }
+  });
 
-    return () => newSocket.close();
-  }, [activeRoom]);
+  return () => newSocket.close();
+}, []); // 👈 remove [activeRoom], keep empty array
+
 
   // Scroll to bottom
   useEffect(() => {
