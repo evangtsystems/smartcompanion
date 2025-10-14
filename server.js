@@ -72,7 +72,10 @@ app.prepare().then(async () => {
     // ✅ Helper: send web push to all guests in a room
 async function sendPushToRoom(roomId, { title, body, url }) {
   try {
-    const subs = await PushSubscription.find({ roomId });
+    const subs = await PushSubscription.find({
+  $or: [{ roomId }, { roomId: 'global' }],
+});
+
     const payload = JSON.stringify({ title, body, url });
 
     for (const sub of subs) {
