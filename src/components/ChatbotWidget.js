@@ -133,8 +133,8 @@ async function registerPush(roomId) {
     };
 
     socket.emit("sendMessage", msg);
-    setMessages((prev) => [...prev, msg]);
-    setInput("");
+setInput("");
+
   };
 
   return (
