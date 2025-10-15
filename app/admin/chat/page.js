@@ -22,9 +22,11 @@ export default function AdminChatDashboard() {
     socketRef.current = s;
 
     s.on("connect", () => {
-      console.log("👑 Connected as Admin");
-      s.emit("adminJoin");
-    });
+  console.log("👑 Connected as Admin");
+  s.emit("adminJoin");
+  registerPush("global"); // 🟢 Add this line
+});
+
 
     s.on("roomsList", (list) => setRooms(list));
     s.on("updateRooms", (list) => setRooms(list));
