@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
 import apiBaseUrl from "../config/api";
+import { registerPush } from "../utils/push.js"; // ✅ add this import
 
 export default function ChatbotWidget({ roomId }) {
   const [socket, setSocket] = useState(null);
@@ -70,10 +71,11 @@ async function registerPush(roomId) {
     const s = io(apiBaseUrl, { transports: ["websocket"] });
     setSocket(s);
 
-    s.on("connect", () => {
+   s.on("connect", () => {
   console.log("✅ Guest connected to chat");
   s.emit("joinRoom", resolvedRoomId);
-  registerPush(resolvedRoomId); // 🟢 ADD THIS LINE
+  // ✅ use the unified function
+  registerPush(resolvedRoomId, "BI-FoW0_e5vandAAet46lR_CfzIOJxVVlMV-ArwBJNJExjS36_odKybOf9dgYjhi12JvgN4Q6yhnVkDKjBvea-0", apiBaseUrl);
 });
 
 

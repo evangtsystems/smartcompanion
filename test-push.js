@@ -14,7 +14,7 @@ webpush.setVapidDetails(
 
 // ✅ Replace these values with what you have in MongoDB (from PushSubscription)
 const subscription = {
-  endpoint: "https://fcm.googleapis.com/fcm/send/cTHD5GfRgL4:APA91bGwe50nB-QpnV8iqt88wuftgnLazzKIKshCdDQICIfdxHNxB1T_XuabAAHIEZAff0X5Ii58kPfY9RQANTWPVBObzSE3wgHxJfEYOQ2kh8vHfvf4u3RQQlvZZHtnbwtOLAOfxI0i",
+  endpoint: "https://fcm.googleapis.com/fcm/send/e9-TNMlZsRU:APA91bFyMDQHK_25AuFms05h4BGsw75LkDN-ZqCERn9IMuyBeWyNJ5GA4-QM6AFBObh8tUKdxBbgk3F_mmXfMBzvvjjBC6RE1K15FMbSJ4YScZBvw0NPnLp9XPdyojfNLa4fWXQiYR5w",
   keys: {
     p256dh: "BFdjDFCLY8uPiTcJf4WQnTEsuSjyH20mWAssFCXzT-I6X_RjWnfAIdhiPuIMOpcOixkQQ3JS0y3kO9s1N7Be6A4",
     auth: "W-Optmyi8nt3HgScfPdBHg"
@@ -22,12 +22,16 @@ const subscription = {
 };
 
 
-// ✅ Message payload
 const payload = JSON.stringify({
-  title: "Smart Companion",
-  body: "🚀 This is a manual background push test!",
-  url: "/villa/villa-panorea-106", // this will open when clicked
+  notification: {
+    title: "Smart Companion",
+    body: "🚀 This is a manual background push test!",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-72.png",
+    data: { url: "/villa/villa-panorea-102" },
+  },
 });
+
 
 // ✅ Send the push
 (async () => {
