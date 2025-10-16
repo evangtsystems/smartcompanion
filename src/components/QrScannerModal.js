@@ -7,36 +7,62 @@ export default function QrScannerModal() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    let scanner;
-    if (open) {
-      scanner = new Html5QrcodeScanner("qr-reader", {
-        fps: 10,
-        qrbox: { width: 250, height: 250 },
-      });
+  let scanner;
+  let isMounted = true;
 
-      scanner.render(
+  async function initScanner() {
+    try {
+      const devices = await Html5Qrcode.getCameras();
+      if (!isMounted || !open) return;
+
+      // 🎯 Prefer the back camera (if available)
+      const backCamera = devices.find((d) =>
+        d.label.toLowerCase().includes("back")
+      );
+      const cameraId = backCamera ? backCamera.id : devices[0]?.id;
+
+      if (!cameraId) {
+        toast.error("No camera found.");
+        return;
+      }
+
+      const html5QrCode = new Html5Qrcode("qr-reader");
+      scanner = html5QrCode;
+
+      await html5QrCode.start(
+        cameraId,
+        { fps: 10, qrbox: { width: 250, height: 250 } },
         (decodedText) => {
           toast.success("QR detected — redirecting...");
           setOpen(false);
-         // ✅ Normalize scanned link (works for both absolute + relative URLs)
-    let url = decodedText.trim();
-    if (!url.startsWith("http")) {
-      url = `${window.location.origin}${url.startsWith("/") ? "" : "/"}${url}`;
-    }
 
-    // ✅ Redirect safely
-    window.location.href = url;
+          // ✅ Normalize scanned link (works for both absolute + relative URLs)
+          let url = decodedText.trim();
+          if (!url.startsWith("http")) {
+            url = `${window.location.origin}${url.startsWith("/") ? "" : "/"}${url}`;
+          }
+
+          // ✅ Redirect safely
+          window.location.href = url;
         },
         (error) => {
           console.warn("QR scan error:", error);
         }
       );
+    } catch (err) {
+      console.error("Camera initialization error:", err);
+      toast.error("Unable to access camera. Check permissions.");
     }
+  }
 
-    return () => {
-      if (scanner) scanner.clear().catch(console.error);
-    };
-  }, [open]);
+  if (open) initScanner();
+
+  return () => {
+    isMounted = false;
+    if (scanner) scanner.stop().then(() => scanner.clear()).catch(() => {});
+  };
+}, [open]);
+
 
   return (
     <div style={{ textAlign: "center", marginTop: "30px" }}>

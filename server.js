@@ -9,6 +9,8 @@ import { Server as SocketIOServer } from "socket.io";
 import apiRouter from "./src/routes/index.js";
 import webpush from "web-push";
 import PushSubscription from "./src/models/PushSubscription.js";
+import Room from "./src/models/Room.js";
+
 
 
 dotenv.config();
@@ -70,25 +72,40 @@ app.prepare().then(async () => {
     mongoose.models.Message || mongoose.model("Message", messageSchema);
 
     // ✅ Helper: send web push to all guests in a room
-async function sendPushToRoom(roomId, { title, body, url }) {
+async function sendPushToRoom(roomId, { title, body }) {
   try {
     const subs = await PushSubscription.find({
-  $or: [{ roomId }, { roomId: 'global' }],
+      $or: [{ roomId }, { roomId: "global" }],
+    });
+
+    const room = await Room.findOne({ roomId });
+    const token = room?.accessToken || "";
+
+    // 👇 Use SITE_URL from .env, fallback to Azure if missing
+    const baseUrl =
+      process.env.SITE_URL ||
+      "https://smartcompanion-h9bqcgcqcegaecd7.italynorth-01.azurewebsites.net";
+
+    const fullUrl = `${baseUrl}/villa/${encodeURIComponent(roomId)}${
+      token ? `?token=${token}` : ""
+    }`;
+
+    const payload = JSON.stringify({
+  title: title || "Smart Companion",
+  body: body || "You have a new message",
+  url: fullUrl,
 });
 
-    const payload = JSON.stringify({ title, body, url });
+
+    console.log("📦 Sending push with URL:", fullUrl);
 
     for (const sub of subs) {
       try {
         await webpush.sendNotification(
-          {
-            endpoint: sub.endpoint,
-            keys: sub.keys,
-          },
+          { endpoint: sub.endpoint, keys: sub.keys },
           payload
         );
       } catch (err) {
-        // remove expired subscriptions
         if (err.statusCode === 410 || err.statusCode === 404) {
           await PushSubscription.deleteOne({ endpoint: sub.endpoint });
         } else {
@@ -100,6 +117,8 @@ async function sendPushToRoom(roomId, { title, body, url }) {
     console.error("❌ sendPushToRoom error:", e);
   }
 }
+
+
 
 
   // ✅ Socket.IO event handlers
@@ -132,7 +151,9 @@ async function sendPushToRoom(roomId, { title, body, url }) {
     socket.on("sendMessage", async ({ roomId, sender, text }) => {
   if (!text || !roomId) return;
   const msg = await Message.create({ roomId, sender, text });
-  io.to(roomId).emit("newMessage", msg);
+  socket.to(roomId).emit("newMessage", msg);
+socket.emit("newMessage", msg);
+
   console.log(`💬 [${roomId}] ${sender}: ${text}`);
 
   if (sender === "guest") {
@@ -142,13 +163,15 @@ async function sendPushToRoom(roomId, { title, body, url }) {
   }
 
   // ✅ NEW: if host sent a message → send push notification
-  if (sender === "host") {
-    await sendPushToRoom(roomId, {
-      title: "New message from your host",
-      body: text,
-      url: `/guest/chat?room=${encodeURIComponent(roomId)}`,
-    });
-  }
+  // ✅ If host sent a message → send push notification to guests
+if (sender === "host") {
+  await sendPushToRoom(roomId, {
+    title: "New message from your host",
+    body: text,
+  });
+}
+
+
 });
 
 

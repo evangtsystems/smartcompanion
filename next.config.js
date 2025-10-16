@@ -1,5 +1,7 @@
-// next.config.cjs
-const withPWA = require("next-pwa")({
+import withPWAInit from "next-pwa";
+import path from "path";
+
+const withPWA = withPWAInit({
   dest: "public",
   register: true,
   skipWaiting: true,
@@ -9,25 +11,22 @@ const withPWA = require("next-pwa")({
   runtimeCaching: [
     {
       urlPattern: /^https?.*\.(?:mp4|webm|mp3|ogg|wav|mov|avi|mkv)$/,
-      handler: "NetworkOnly", // Don't try to cache partial/streamed media
-      options: {
-        cacheName: "no-cache-media",
-      },
+      handler: "NetworkOnly",
+      options: { cacheName: "no-cache-media" },
     },
     {
-      // Default: cache pages, images, scripts, etc.
       urlPattern: /^https?.*/,
       handler: "NetworkFirst",
       options: {
         cacheName: "default-cache",
         networkTimeoutSeconds: 10,
-        expiration: { maxEntries: 200, maxAgeSeconds: 7 * 24 * 60 * 60 }, // 1 week
+        expiration: { maxEntries: 200, maxAgeSeconds: 7 * 24 * 60 * 60 },
       },
     },
   ],
 });
 
-module.exports = withPWA({
+const nextConfig = {
   reactStrictMode: true,
 
   webpack: (config) => {
@@ -45,6 +44,8 @@ module.exports = withPWA({
 
     return config;
   },
-});
+};
+
+export default withPWA(nextConfig);
 
 

@@ -1,12 +1,11 @@
-// ✅ Smart Companion Service Worker (stable version)
+// ✅ Smart Companion Service Worker (auto-refresh stable version)
 
-const CACHE_VERSION = "v2"; // static cache version
+const CACHE_VERSION = "v3"; // 🟣 bump version to force new cache on deploy
 const CACHE_NAME = `smart-companion-${CACHE_VERSION}`;
 
 const ASSETS = [
-  "/", // ensure shell is cached
+  "/", // shell
   "/manifest.json",
-  // include all manifest icons
   "/icons/icon-72.png",
   "/icons/icon-96.png",
   "/icons/icon-128.png",
@@ -22,36 +21,42 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
   );
-  self.skipWaiting();
+  self.skipWaiting(); // activate immediately
 });
 
-// 🟡 ACTIVATE — clean up old caches
+// 🟡 ACTIVATE — clean up old caches + claim clients
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) return caches.delete(key);
         })
-      )
-    )
+      );
+      await self.clients.claim();
+      console.log("🔥 Old caches cleared and new SW activated");
+
+      // 🟣 Tell pages to reload when a new SW takes control
+      const clientsList = await self.clients.matchAll({ type: "window" });
+      clientsList.forEach((client) =>
+        client.postMessage({ type: "NEW_SW_ACTIVE" })
+      );
+    })()
   );
-  self.clients.claim();
 });
 
-// 🔵 FETCH — network-first for pages, cache-first for static assets
+// 🔵 FETCH — network-first for pages, cache-first for assets
 self.addEventListener("fetch", (event) => {
   const req = event.request;
 
-  // HTML: always try network first
+  // HTML: network-first
   if (req.mode === "navigate") {
-    event.respondWith(
-      fetch(req).catch(() => caches.match("/"))
-    );
+    event.respondWith(fetch(req).catch(() => caches.match("/")));
     return;
   }
 
-  // Other files: cache-first
+  // Other: cache-first
   event.respondWith(
     caches.match(req).then(
       (cached) =>
@@ -67,7 +72,7 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
-// 🔔 Notification hook for chat messages
+// 🔔 Chat notifications
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "chatMessage") {
     self.registration.showNotification("New message", {
@@ -78,6 +83,7 @@ self.addEventListener("message", (event) => {
   }
 });
 
+// 🔔 Push notifications
 self.addEventListener("push", (event) => {
   const data = event.data ? event.data.json() : {};
   const title = data.title || "Smart Companion";
@@ -107,4 +113,5 @@ self.addEventListener("notificationclick", (event) => {
     })
   );
 });
+
 

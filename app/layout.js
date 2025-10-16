@@ -1,5 +1,6 @@
 
-import Header from "../src/components/header";
+import ClientHeader from "../src/components/ClientHeader";
+
 import { Toaster } from "react-hot-toast";
 
 export const metadata = { title: "Smart Companion" };
@@ -28,7 +29,7 @@ export default function RootLayout({ children }) {
           background: "#f8f8f8",
         }}
       >
-        <Header />
+        <ClientHeader />
         <main style={{ padding: "20px" }}>{children}</main>
 
         {/* ✅ Toast notification container */}
@@ -66,6 +67,14 @@ export default function RootLayout({ children }) {
                         const rawData = atob(base64);
                         return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
                       }
+
+                      navigator.serviceWorker.addEventListener("message", (event) => {
+  if (event.data?.type === "NEW_SW_ACTIVE") {
+    console.log("♻️ New service worker active — reloading page...");
+    window.location.reload();
+  }
+});
+
 
                       // Register push globally if not yet done
                       const existingSub = await readyReg.pushManager.getSubscription();
