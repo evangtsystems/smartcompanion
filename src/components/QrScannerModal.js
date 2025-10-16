@@ -6,62 +6,42 @@ import toast from "react-hot-toast";
 export default function QrScannerModal() {
   const [open, setOpen] = useState(false);
 
-  useEffect(() => {
+ useEffect(() => {
   let scanner;
-  let isMounted = true;
 
-  async function initScanner() {
-    try {
-      const devices = await Html5Qrcode.getCameras();
-      if (!isMounted || !open) return;
+  if (open) {
+    scanner = new Html5QrcodeScanner("qr-reader", {
+      fps: 10,
+      qrbox: { width: 250, height: 250 },
+    });
 
-      // 🎯 Prefer the back camera (if available)
-      const backCamera = devices.find((d) =>
-        d.label.toLowerCase().includes("back")
-      );
-      const cameraId = backCamera ? backCamera.id : devices[0]?.id;
+    scanner.render(
+      (decodedText) => {
+        toast.success("QR detected — redirecting...");
+        setOpen(false);
 
-      if (!cameraId) {
-        toast.error("No camera found.");
-        return;
-      }
-
-      const html5QrCode = new Html5Qrcode("qr-reader");
-      scanner = html5QrCode;
-
-      await html5QrCode.start(
-        cameraId,
-        { fps: 10, qrbox: { width: 250, height: 250 } },
-        (decodedText) => {
-          toast.success("QR detected — redirecting...");
-          setOpen(false);
-
-          // ✅ Normalize scanned link (works for both absolute + relative URLs)
-          let url = decodedText.trim();
-          if (!url.startsWith("http")) {
-            url = `${window.location.origin}${url.startsWith("/") ? "" : "/"}${url}`;
-          }
-
-          // ✅ Redirect safely
-          window.location.href = url;
-        },
-        (error) => {
-          console.warn("QR scan error:", error);
+        // ✅ Normalize scanned link (works for both absolute + relative URLs)
+        let url = decodedText.trim();
+        if (!url.startsWith("http")) {
+          url = `${window.location.origin}${url.startsWith("/") ? "" : "/"}${url}`;
         }
-      );
-    } catch (err) {
-      console.error("Camera initialization error:", err);
-      toast.error("Unable to access camera. Check permissions.");
-    }
+
+        // ✅ Redirect safely
+        window.location.href = url;
+      },
+      (error) => {
+        console.warn("QR scan error:", error);
+      }
+    );
   }
 
-  if (open) initScanner();
-
   return () => {
-    isMounted = false;
-    if (scanner) scanner.stop().then(() => scanner.clear()).catch(() => {});
+    if (scanner) {
+      scanner.clear().catch(console.error);
+    }
   };
 }, [open]);
+
 
 
   return (
