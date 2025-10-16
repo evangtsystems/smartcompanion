@@ -25,7 +25,7 @@ export default function VillaPage() {
     if (!slug) return;
     const fetchVilla = async () => {
       try {
-        const res = await fetch(`${window.location.origin}/api/villas/${slug}`);
+         const res = await fetch(`${apiBaseUrl}/api/villas/${slug}`);
         const data = await res.json();
         setVilla(data.data);
       } catch (err) {
@@ -61,7 +61,7 @@ useEffect(() => {
 
   const verify = async () => {
     try {
-      const res = await fetch(`/api/rooms/verify?roomId=${slug}&token=${tokenToCheck}`);
+      const res = await fetch(`${apiBaseUrl}/api/rooms/verify?roomId=${slug}&token=${tokenToCheck}`);
       const data = await res.json();
       if (data.valid) {
         setVerified(true);
@@ -111,7 +111,7 @@ useEffect(() => {
   };
 
   try {
-    const res = await fetch(`${window.location.origin}/api/requests`, {
+    const res = await fetch(`${apiBaseUrl}/api/requests`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
