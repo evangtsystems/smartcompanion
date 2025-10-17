@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import QrScannerModal from "../src/components/QrScannerModal";
 import InstallAppButton from "../src/components/InstallAppButton";
+import EmergencyContacts from "../src/components/EmergencyContacts";
+
 
 export default function Home() {
   const router = useRouter();
@@ -386,6 +388,11 @@ export default function Home() {
           ))}
         </div>
       </section>
+
+
+    
+<EmergencyContacts />
+
 
       {/* Footer */}
       <footer

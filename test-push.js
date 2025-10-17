@@ -14,12 +14,13 @@ webpush.setVapidDetails(
 
 // ✅ Replace these values with what you have in MongoDB (from PushSubscription)
 const subscription = {
-  endpoint: "https://fcm.googleapis.com/fcm/send/e9-TNMlZsRU:APA91bFyMDQHK_25AuFms05h4BGsw75LkDN-ZqCERn9IMuyBeWyNJ5GA4-QM6AFBObh8tUKdxBbgk3F_mmXfMBzvvjjBC6RE1K15FMbSJ4YScZBvw0NPnLp9XPdyojfNLa4fWXQiYR5w",
+  endpoint: "https://fcm.googleapis.com/fcm/send/cQb6oJq_j0U:APA91bGvprHdWAWi67f9-B9ftH2GZ6FWU1yE3SQcB-2-626v5hoGP9_tU_94wcFOEpoIOeOV3Z90ZGy3iC5M0BLEP8kTgN2bsFv9Tt2f5hwuanrQR5wepiqEZdBtOMpZfdRNiK-SBNZx",
   keys: {
-    p256dh: "BFdjDFCLY8uPiTcJf4WQnTEsuSjyH20mWAssFCXzT-I6X_RjWnfAIdhiPuIMOpcOixkQQ3JS0y3kO9s1N7Be6A4",
-    auth: "W-Optmyi8nt3HgScfPdBHg"
+    p256dh: "BOCUW6kkatA6CqTxtyZh0Uk2dT_zZoJBQcinMC2_5i5JHGI5-_NimNOc_7nQQbB9eAwnFRREL-wgxo-6yZTXJOM",
+    auth: "W206oWJMKVcShBHvY_oR5Q"
   }
 };
+
 
 
 const payload = JSON.stringify({
@@ -28,7 +29,7 @@ const payload = JSON.stringify({
     body: "🚀 This is a manual background push test!",
     icon: "/icons/icon-192.png",
     badge: "/icons/icon-72.png",
-    data: { url: "/villa/villa-panorea-102" },
+    data: { url: "/villa/villa-panorea-103" },
   },
 });
 
