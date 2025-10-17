@@ -1,6 +1,6 @@
 // ✅ Smart Companion Service Worker (auto-refresh stable version)
 
-const CACHE_VERSION = "v3"; // 🟣 bump version to force new cache on deploy
+const CACHE_VERSION = "v4"; // 🟣 bump version to force new cache on deploy
 const CACHE_NAME = `smart-companion-${CACHE_VERSION}`;
 
 const ASSETS = [
@@ -47,6 +47,7 @@ self.addEventListener("activate", (event) => {
 });
 
 // 🔵 FETCH — network-first for pages, cache-first for assets
+// 🔵 FETCH — network-first for pages, cache-first for assets
 self.addEventListener("fetch", (event) => {
   const req = event.request;
 
@@ -58,19 +59,25 @@ self.addEventListener("fetch", (event) => {
 
   // Other: cache-first
   event.respondWith(
-    caches.match(req).then(
-      (cached) =>
-        cached ||
-        fetch(req).then((res) => {
+    caches.match(req).then((cached) => {
+      if (cached) return cached;
+
+      return fetch(req).then((res) => {
+        // ✅ only cache successful full responses from same-origin
+        if (
+          req.url.startsWith(self.location.origin) &&
+          res.ok &&
+          res.status === 200
+        ) {
           const clone = res.clone();
-          if (req.url.startsWith(self.location.origin)) {
-            caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
-          }
-          return res;
-        })
-    )
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
+        }
+        return res;
+      }).catch(() => cached);
+    })
   );
 });
+
 
 // 🔔 Chat notifications
 self.addEventListener("message", (event) => {

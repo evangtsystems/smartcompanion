@@ -46,3 +46,9 @@ export async function registerPush(roomId, publicKey, apiBaseUrl = process.env.N
     console.error("❌ Push registration failed:", err);
   }
 }
+
+// ✅ Make available in browser console
+if (typeof window !== "undefined") {
+  window.registerPush = registerPush;
+}
+
