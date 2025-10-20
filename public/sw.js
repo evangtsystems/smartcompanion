@@ -1,6 +1,6 @@
-// ✅ Smart Companion Service Worker (stable + reliable push notifications)
+// ✅ Smart Companion Service Worker (stable + push + offline)
 
-const CACHE_VERSION = "v5"; // bump version on each deploy
+const CACHE_VERSION = "v6"; // 🔁 bump this when deploying new builds
 const CACHE_NAME = `smart-companion-${CACHE_VERSION}`;
 
 const ASSETS = [
@@ -16,7 +16,7 @@ const ASSETS = [
   "/icons/icon-512.png",
 ];
 
-// 🟢 INSTALL — Pre-cache core files
+// 🟢 INSTALL — Precache core assets
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
@@ -24,7 +24,7 @@ self.addEventListener("install", (event) => {
   self.skipWaiting();
 });
 
-// 🟡 ACTIVATE — Clean up old caches and reload pages
+// 🟡 ACTIVATE — Remove old caches + take control
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
@@ -33,9 +33,9 @@ self.addEventListener("activate", (event) => {
         keys.map((key) => key !== CACHE_NAME && caches.delete(key))
       );
       await self.clients.claim();
-      console.log("🔥 New service worker active — caches cleaned");
+      console.log("🔥 Service Worker active — cache cleaned");
 
-      // Notify pages that a new SW took over
+      // Notify clients that new SW took control
       const clientsList = await self.clients.matchAll({ type: "window" });
       clientsList.forEach((client) =>
         client.postMessage({ type: "NEW_SW_ACTIVE" })
@@ -44,10 +44,11 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// 🔵 FETCH — Network-first for pages, cache-first for static assets
+// 🔵 FETCH — Network-first for HTML, cache-first for others
 self.addEventListener("fetch", (event) => {
   const req = event.request;
 
+  // 🧭 For navigation requests (pages)
   if (req.mode === "navigate") {
     event.respondWith(
       fetch(req).catch(() => caches.match("/"))
@@ -55,11 +56,14 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // 🧱 For static files
   event.respondWith(
     caches.match(req).then((cached) => {
       if (cached) return cached;
+
       return fetch(req)
         .then((res) => {
+          // Cache successful same-origin responses
           if (
             req.url.startsWith(self.location.origin) &&
             res.ok &&
@@ -75,18 +79,18 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
-// 🔔 In-app chat notification (manual trigger from page)
+// 💬 In-app chat messages (manual trigger)
 self.addEventListener("message", (event) => {
-  if (event.data && event.data.type === "chatMessage") {
+  if (event.data?.type === "chatMessage") {
     self.registration.showNotification("New message", {
-      body: event.data.text,
+      body: event.data.text || "You received a new message",
       icon: "/icons/icon-192.png",
       vibrate: [200, 100, 200],
     });
   }
 });
 
-// 🔔 PUSH — Reliable push notification handling
+// 🔔 PUSH — Handle incoming push notifications
 self.addEventListener("push", (event) => {
   if (!event.data) return;
 
@@ -107,8 +111,8 @@ self.addEventListener("push", (event) => {
           vibrate: [200, 100, 200],
           data: { url },
           actions: [{ action: "open", title: "Open" }],
-          renotify: true, // replaces old notifications with same tag
-          tag: "smart-companion", // ensures deduplication
+          renotify: true,
+          tag: "smart-companion",
         });
       } catch (err) {
         console.error("❌ Push event failed:", err);
@@ -117,7 +121,7 @@ self.addEventListener("push", (event) => {
   );
 });
 
-// 🔗 Handle notification clicks — reopen or focus app
+// 🔗 Click on notification → open or focus tab
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url = event.notification.data?.url || "/";
@@ -131,9 +135,16 @@ self.addEventListener("notificationclick", (event) => {
 
       const focused = clientsList.find((c) => c.url.includes(url));
       if (focused) return focused.focus();
+
       return clients.openWindow(url);
     })()
   );
 });
 
-
+// 🧹 Optional: clear obsolete caches when user sends manual request
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "CLEAR_CACHES") {
+    caches.keys().then((keys) => keys.forEach((key) => caches.delete(key)));
+    console.log("🧹 Caches cleared manually");
+  }
+});

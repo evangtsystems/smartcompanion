@@ -45,8 +45,6 @@ export default function RootLayout({ children }) {
           name="viewport"
           content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
         />
-
-        {/* ✅ Manifest + service worker ensure PWA install on Android + iPhone */}
       </head>
 
       <body
@@ -70,59 +68,64 @@ export default function RootLayout({ children }) {
                 window.addEventListener('load', async () => {
                   try {
                     const reg = await navigator.serviceWorker.register('/sw.js');
-                    console.log('✅ Service Worker registered:', reg.scope);
+                    console.log('✅ Custom Service Worker registered:', reg.scope);
 
                     const readyReg = await navigator.serviceWorker.ready;
                     console.log('📦 SW ready:', readyReg.scope);
 
-                    // ✅ Listen for SW updates
-                    navigator.serviceWorker.addEventListener("message", (event) => {
-                      if (event.data?.type === "NEW_SW_ACTIVE") {
-                        console.log("♻️ New service worker active — reloading page...");
+                    // ♻️ Reload if new service worker activates
+                    navigator.serviceWorker.addEventListener('message', (event) => {
+                      if (event.data?.type === 'NEW_SW_ACTIVE') {
+                        console.log('♻️ New service worker active — reloading...');
                         window.location.reload();
                       }
                     });
 
-                    // ✅ Ask for notification permission (after delay to avoid iOS auto-block)
+                    // 🕒 Ask permission slightly later (iOS-friendly)
                     setTimeout(async () => {
+                      if (!('Notification' in window)) return;
                       const permission = await Notification.requestPermission();
-                      if (permission === 'granted') {
-                        const vapidKey = "${process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY}";
-                        const apiBaseUrl = "${
-                          process.env.NEXT_PUBLIC_API_BASE_URL ||
-                          "https://your-api-domain.com"
-                        }";
-
-                        function urlBase64ToUint8Array(base64String) {
-                          const padding = '='.repeat((4 - base64String.length % 4) % 4);
-                          const base64 = (base64String + padding)
-                            .replace(/-/g, '+')
-                            .replace(/_/g, '/');
-                          const rawData = atob(base64);
-                          return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
-                        }
-
-                        const existingSub = await readyReg.pushManager.getSubscription();
-                        if (!existingSub) {
-                          const sub = await readyReg.pushManager.subscribe({
-                            userVisibleOnly: true,
-                            applicationServerKey: urlBase64ToUint8Array(vapidKey),
-                          });
-
-                          localStorage.setItem('pushSub', JSON.stringify(sub.toJSON()));
-                          await fetch(\`\${apiBaseUrl}/api/push/subscribe\`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ roomId: 'global', subscription: sub }),
-                          });
-                          console.log('✅ Global push subscription registered');
-                        } else {
-                          console.log('ℹ️ Push subscription already exists');
-                        }
-                      } else {
+                      if (permission !== 'granted') {
                         console.warn('🚫 Notifications not granted');
+                        return;
                       }
-                    }, 3000);
+
+                      const vapidKey = "${process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY}";
+                      const apiBaseUrl = "${
+                        process.env.NEXT_PUBLIC_API_BASE_URL ||
+                        "https://your-api-domain.com"
+                      }";
+
+                      const existingSub = await readyReg.pushManager.getSubscription();
+                      if (existingSub) {
+                        console.log('ℹ️ Existing push subscription found');
+                        return;
+                      }
+
+                      function urlBase64ToUint8Array(base64String) {
+                        const padding = '='.repeat((4 - base64String.length % 4) % 4);
+                        const base64 = (base64String + padding)
+                          .replace(/-/g, '+')
+                          .replace(/_/g, '/');
+                        const rawData = atob(base64);
+                        return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+                      }
+
+                      const sub = await readyReg.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: urlBase64ToUint8Array(vapidKey),
+                      });
+
+                      localStorage.setItem('pushSub', JSON.stringify(sub.toJSON()));
+
+                      await fetch(\`\${apiBaseUrl}/api/push/subscribe\`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ roomId: 'global', subscription: sub }),
+                      });
+
+                      console.log('✅ Global push subscription registered');
+                    }, 2500);
                   } catch (err) {
                     console.error('❌ SW or Push setup failed:', err);
                   }
