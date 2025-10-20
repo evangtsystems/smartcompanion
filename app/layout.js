@@ -1,6 +1,5 @@
 
 import ClientHeader from "../src/components/ClientHeader";
-
 import { Toaster } from "react-hot-toast";
 
 export const metadata = { title: "Smart Companion" };
@@ -13,13 +12,41 @@ export default function RootLayout({ children }) {
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#1f3b2e" />
 
-        {/* Optional: iOS install support */}
+        {/* ✅ SEO & Description */}
+        <meta
+          name="description"
+          content="Smart Companion — your AI-powered travel assistant PWA for smarter trips."
+        />
+        <title>Smart Companion</title>
+
+        {/* ✅ iOS install & splash support */}
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta
           name="apple-mobile-web-app-status-bar-style"
           content="black-translucent"
         />
+        <meta name="apple-mobile-web-app-title" content="Smart Companion" />
+        <meta name="format-detection" content="telephone=no" />
+
+        {/* ✅ Optional splash screen for iOS */}
+        <link
+          rel="apple-touch-startup-image"
+          href="/icons/splash-1242x2688.png"
+          media="(device-width: 414px)"
+        />
+
+        {/* ✅ Favicons for browsers */}
+        <link rel="icon" href="/icons/icon-96.png" type="image/png" />
+        <link rel="shortcut icon" href="/icons/icon-96.png" type="image/png" />
+
+        {/* ✅ Viewport & responsiveness */}
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+        />
+
+        {/* ✅ Manifest + service worker ensure PWA install on Android + iPhone */}
       </head>
 
       <body
@@ -32,13 +59,10 @@ export default function RootLayout({ children }) {
         <ClientHeader />
         <main style={{ padding: "20px" }}>{children}</main>
 
-        {/* ✅ Toast notification container */}
-        <Toaster
-          position="bottom-center"
-          toastOptions={{ duration: 2500 }}
-        />
+        {/* ✅ Toast notifications */}
+        <Toaster position="bottom-center" toastOptions={{ duration: 2500 }} />
 
-        {/* ✅ Register Service Worker + Global Push Subscription */}
+        {/* ✅ Service Worker + Push Notifications */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -48,55 +72,57 @@ export default function RootLayout({ children }) {
                     const reg = await navigator.serviceWorker.register('/sw.js');
                     console.log('✅ Service Worker registered:', reg.scope);
 
-                    // Wait until ready
                     const readyReg = await navigator.serviceWorker.ready;
                     console.log('📦 SW ready:', readyReg.scope);
 
-                    // Request permission for notifications
-                    const permission = await Notification.requestPermission();
-                    if (permission === 'granted') {
-                      const vapidKey = "${process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY}";
-                      const apiBaseUrl = "${process.env.NEXT_PUBLIC_API_BASE_URL || "https://your-api-domain.com"}";
-
-                      // Helper to convert base64 VAPID key
-                      function urlBase64ToUint8Array(base64String) {
-                        const padding = '='.repeat((4 - base64String.length % 4) % 4);
-                        const base64 = (base64String + padding)
-                          .replace(/-/g, '+')
-                          .replace(/_/g, '/');
-                        const rawData = atob(base64);
-                        return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+                    // ✅ Listen for SW updates
+                    navigator.serviceWorker.addEventListener("message", (event) => {
+                      if (event.data?.type === "NEW_SW_ACTIVE") {
+                        console.log("♻️ New service worker active — reloading page...");
+                        window.location.reload();
                       }
+                    });
 
-                      navigator.serviceWorker.addEventListener("message", (event) => {
-  if (event.data?.type === "NEW_SW_ACTIVE") {
-    console.log("♻️ New service worker active — reloading page...");
-    window.location.reload();
-  }
-});
+                    // ✅ Ask for notification permission (after delay to avoid iOS auto-block)
+                    setTimeout(async () => {
+                      const permission = await Notification.requestPermission();
+                      if (permission === 'granted') {
+                        const vapidKey = "${process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY}";
+                        const apiBaseUrl = "${
+                          process.env.NEXT_PUBLIC_API_BASE_URL ||
+                          "https://your-api-domain.com"
+                        }";
 
+                        function urlBase64ToUint8Array(base64String) {
+                          const padding = '='.repeat((4 - base64String.length % 4) % 4);
+                          const base64 = (base64String + padding)
+                            .replace(/-/g, '+')
+                            .replace(/_/g, '/');
+                          const rawData = atob(base64);
+                          return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+                        }
 
-                      // Register push globally if not yet done
-                      const existingSub = await readyReg.pushManager.getSubscription();
-                      if (!existingSub) {
-                        const sub = await readyReg.pushManager.subscribe({
-                          userVisibleOnly: true,
-                          applicationServerKey: urlBase64ToUint8Array(vapidKey),
-                        });
+                        const existingSub = await readyReg.pushManager.getSubscription();
+                        if (!existingSub) {
+                          const sub = await readyReg.pushManager.subscribe({
+                            userVisibleOnly: true,
+                            applicationServerKey: urlBase64ToUint8Array(vapidKey),
+                          });
 
-                        localStorage.setItem('pushSub', JSON.stringify(sub.toJSON()));
-                        await fetch(\`\${apiBaseUrl}/api/push/subscribe\`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ roomId: 'global', subscription: sub }),
-                        });
-                        console.log('✅ Global push subscription registered');
+                          localStorage.setItem('pushSub', JSON.stringify(sub.toJSON()));
+                          await fetch(\`\${apiBaseUrl}/api/push/subscribe\`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ roomId: 'global', subscription: sub }),
+                          });
+                          console.log('✅ Global push subscription registered');
+                        } else {
+                          console.log('ℹ️ Push subscription already exists');
+                        }
                       } else {
-                        console.log('ℹ️ Push subscription already exists');
+                        console.warn('🚫 Notifications not granted');
                       }
-                    } else {
-                      console.warn('🚫 Notifications not granted');
-                    }
+                    }, 3000);
                   } catch (err) {
                     console.error('❌ SW or Push setup failed:', err);
                   }
@@ -109,6 +135,3 @@ export default function RootLayout({ children }) {
     </html>
   );
 }
-
-
-
