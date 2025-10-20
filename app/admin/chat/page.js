@@ -29,19 +29,26 @@ export default function AdminChatDashboard() {
       registerPush("global");
     });
 
-    s.on("roomsList", (list) => {
-  setRooms((prev) => {
-    const combined = Array.from(new Set([...defaultRooms, ...list]));
-    return combined;
-  });
-});
+    const expectedRooms = [
+  "villa-panorea-101",
+  "villa-panorea-102",
+  "villa-panorea-103",
+  "villa-panorea-104",
+  "villa-panorea-105",
+  "villa-panorea-106",
+  "villa-panorea-107",
+];
 
-s.on("updateRooms", (list) => {
-  setRooms((prev) => {
-    const combined = Array.from(new Set([...defaultRooms, ...list]));
-    return combined;
-  });
-});
+function ensureAllRooms(incomingRooms) {
+  // Create a list that always includes all expected rooms
+  // but uses backend names if they exist
+  const set = new Set([...incomingRooms, ...expectedRooms]);
+  return expectedRooms.map((r) => (set.has(r) ? r : r));
+}
+
+s.on("roomsList", (list) => setRooms(ensureAllRooms(list)));
+s.on("updateRooms", (list) => setRooms(ensureAllRooms(list)));
+
 
     s.on("chatHistory", (history) => setMessages(history));
 
