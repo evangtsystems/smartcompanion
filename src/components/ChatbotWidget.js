@@ -83,7 +83,7 @@ async function registerPush(roomId) {
   console.log("✅ Guest connected to chat");
   s.emit("joinRoom", resolvedRoomId);
   // ✅ use the unified function
-  registerPush(resolvedRoomId, "BI-FoW0_e5vandAAet46lR_CfzIOJxVVlMV-ArwBJNJExjS36_odKybOf9dgYjhi12JvgN4Q6yhnVkDKjBvea-0", apiBaseUrl);
+  
 });
 
 
@@ -182,7 +182,18 @@ setInput("");
       {/* Floating Button */}
       {!showChat && (
         <div
-  onClick={handleOpenChat}
+  onClick={async () => {
+  handleOpenChat(); // open the chat
+  // ✅ Ask for notification permission *only once* after user tap
+  if (Notification.permission === "default") {
+    try {
+      await registerPush(resolvedRoomId);
+    } catch (err) {
+      console.error("Push registration error:", err);
+    }
+  }
+}}
+
   style={{
     position: "relative",
     background: "linear-gradient(145deg, #418f22ff, #ffe76b)",

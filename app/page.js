@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import QrScannerModal from "../src/components/QrScannerModal";
 import InstallAppButton from "../src/components/InstallAppButton";
 import EmergencyContacts from "../src/components/EmergencyContacts";
+import UsefulInfoSection from "../src/components/UsefulInfoSection";
 
 
 export default function Home() {
@@ -390,7 +391,7 @@ export default function Home() {
       </section>
 
 
-    
+    <UsefulInfoSection />
 <EmergencyContacts />
 
 
