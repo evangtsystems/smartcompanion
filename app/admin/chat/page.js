@@ -5,16 +5,18 @@ import apiBaseUrl from "../../../src/config/api";
 import toast from "react-hot-toast";
 import { registerPush } from "../../../src/utils/push.js";
 
-
 export default function AdminChatDashboard() {
-  const socketRef = useRef(null); // ✅ persistent socket
+  const socketRef = useRef(null);
   const [rooms, setRooms] = useState([]);
   const [notifications, setNotifications] = useState({});
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState("");
+  const [showSidebar, setShowSidebar] = useState(false); // ✅ for mobile toggle
 
-  // ✅ Stable socket connection
+  const defaultRooms = Array.from({ length: 7 }, (_, i) => `Room ${i + 1}`);
+
+  // ✅ Socket setup
   useEffect(() => {
     if (socketRef.current) return;
 
@@ -22,14 +24,25 @@ export default function AdminChatDashboard() {
     socketRef.current = s;
 
     s.on("connect", () => {
-  console.log("👑 Connected as Admin");
-  s.emit("adminJoin");
-  registerPush("global"); // 🟢 Add this line
+      console.log("👑 Connected as Admin");
+      s.emit("adminJoin");
+      registerPush("global");
+    });
+
+    s.on("roomsList", (list) => {
+  setRooms((prev) => {
+    const combined = Array.from(new Set([...defaultRooms, ...list]));
+    return combined;
+  });
 });
 
+s.on("updateRooms", (list) => {
+  setRooms((prev) => {
+    const combined = Array.from(new Set([...defaultRooms, ...list]));
+    return combined;
+  });
+});
 
-    s.on("roomsList", (list) => setRooms(list));
-    s.on("updateRooms", (list) => setRooms(list));
     s.on("chatHistory", (history) => setMessages(history));
 
     s.on("newMessage", (msg) => {
@@ -53,7 +66,6 @@ export default function AdminChatDashboard() {
         return prev;
       });
 
-      // ✅ Service Worker notification hook
       if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
         navigator.serviceWorker.controller.postMessage({
           type: "chatMessage",
@@ -75,10 +87,7 @@ export default function AdminChatDashboard() {
       s.disconnect();
       socketRef.current = null;
     };
-  }, []); // ✅ run once only
-
-  
-
+  }, []);
 
   // 🏠 Join room
   const joinRoom = (roomId) => {
@@ -87,6 +96,7 @@ export default function AdminChatDashboard() {
     setSelectedRoom(roomId);
     setNotifications((prev) => ({ ...prev, [roomId]: 0 }));
     socket.emit("joinRoom", roomId);
+    setShowSidebar(false); // ✅ auto-close sidebar on mobile
   };
 
   // 💬 Send message
@@ -112,7 +122,7 @@ export default function AdminChatDashboard() {
     setMessage("");
   };
 
-  // 🧹 Delete all chats
+  // 🧹 Clear chats
   const clearAllChats = async () => {
     if (!window.confirm("⚠️ Delete ALL chat history?")) return;
     try {
@@ -129,12 +139,11 @@ export default function AdminChatDashboard() {
         toast.error("Failed to delete chats");
       }
     } catch (err) {
-      console.error(err);
       toast.error("Server error");
     }
   };
 
-  // 🧽 Delete selected room
+  // 🧽 Clear selected room
   const clearSelectedRoom = async () => {
     if (!selectedRoom) return toast.error("No room selected");
     if (!window.confirm(`Delete all messages in ${selectedRoom}?`)) return;
@@ -153,209 +162,270 @@ export default function AdminChatDashboard() {
         toast.error("Failed to clear this room");
       }
     } catch (err) {
-      console.error(err);
       toast.error("Server error");
     }
   };
 
-  return (
-    <div
-      style={{
-        display: "flex",
-        height: "100vh",
-        fontFamily: "'Poppins', sans-serif",
-        background: "#f7f7e6",
-      }}
-    >
-      {/* Sidebar */}
-      <div
+  // 📱 Detect small screens
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+
+ return (
+  <div
+    style={{
+      display: "flex",
+      height: "100vh",
+      fontFamily: "'Poppins', sans-serif",
+      background: "#f7f7e6",
+      flexDirection: isMobile ? "column" : "row",
+      overflow: "hidden",
+    }}
+  >
+    {/* Sidebar toggle for mobile */}
+    {isMobile && (
+      <button
+        onClick={() => setShowSidebar(!showSidebar)}
         style={{
-          width: "260px",
-          background: "#fff9b0",
-          padding: "20px",
-          boxShadow: "2px 0 8px rgba(0,0,0,0.1)",
-          overflowY: "auto",
+          background: "#1f3b2e",
+          color: "#fff9b0",
+          border: "none",
+          padding: "10px 15px",
+          fontWeight: "bold",
+          fontSize: "1rem",
+          cursor: "pointer",
+          width: "100%",
+          zIndex: 3,
         }}
       >
-        <h2 style={{ textAlign: "center", color: "#1f3b2e" }}>💬 Active Rooms</h2>
+        {showSidebar ? "Close Rooms ▲" : "Show Rooms ▼"}
+      </button>
+    )}
 
-        <div style={{ marginTop: "10px", marginBottom: "15px" }}>
-          <button
-            onClick={clearAllChats}
+    {/* Sidebar */}
+    <div
+      style={{
+        width: isMobile ? "100%" : "260px",
+        background: "#fff9b0",
+        padding: "15px",
+        boxShadow: isMobile ? "none" : "2px 0 8px rgba(0,0,0,0.1)",
+        overflowY: "auto",
+        display: isMobile && !showSidebar ? "none" : "block",
+        flexShrink: 0,
+        zIndex: 2,
+      }}
+    >
+      <h2
+        style={{
+          textAlign: "center",
+          color: "#1f3b2e",
+          fontSize: isMobile ? "1.1rem" : "1.3rem",
+        }}
+      >
+        💬 Active Rooms
+      </h2>
+
+      <div style={{ marginTop: "10px", marginBottom: "15px" }}>
+        <button
+          onClick={clearAllChats}
+          style={{
+            width: "100%",
+            padding: isMobile ? "6px" : "8px",
+            background: "#c62828",
+            color: "#fff",
+            border: "none",
+            borderRadius: "6px",
+            fontWeight: "bold",
+            cursor: "pointer",
+            marginBottom: "6px",
+            fontSize: isMobile ? "0.85rem" : "0.95rem",
+          }}
+        >
+          🧹 Clear All Chats
+        </button>
+        <button
+          onClick={clearSelectedRoom}
+          style={{
+            width: "100%",
+            padding: isMobile ? "6px" : "8px",
+            background: "#1976d2",
+            color: "#fff",
+            border: "none",
+            borderRadius: "6px",
+            fontWeight: "bold",
+            cursor: "pointer",
+            fontSize: isMobile ? "0.85rem" : "0.95rem",
+          }}
+        >
+          🧽 Clear This Room
+        </button>
+      </div>
+
+     {(rooms.length === 0 ? defaultRooms : rooms).map((room) => (
+  <div
+    key={room}
+    onClick={() => joinRoom(room)}
+    style={{
+      padding: "10px",
+      marginTop: "10px",
+      background:
+        selectedRoom === room ? "#1f3b2e" : "rgba(255,255,255,0.8)",
+      color: selectedRoom === room ? "#fff" : "#1f3b2e",
+      borderRadius: "8px",
+      cursor: "pointer",
+      position: "relative",
+      fontWeight: "bold",
+      fontSize: isMobile ? "0.9rem" : "1rem",
+    }}
+  >
+    {room}
+    {notifications[room] > 0 && (
+      <span
+        style={{
+          position: "absolute",
+          right: "10px",
+          top: "8px",
+          background: "red",
+          color: "white",
+          borderRadius: "50%",
+          width: "20px",
+          height: "20px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: "0.75em",
+        }}
+      >
+        {notifications[room]}
+      </span>
+    )}
+  </div>
+))}
+
+    </div>
+
+    {/* Chat Window */}
+    <div
+      style={{
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        width: "100%",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          background: "#1f3b2e",
+          color: "#fff9b0",
+          padding: "10px",
+          textAlign: "center",
+          fontWeight: "bold",
+          letterSpacing: "0.5px",
+          fontSize: isMobile ? "0.95rem" : "1rem",
+          flexShrink: 0,
+        }}
+      >
+        {selectedRoom ? `Chat with ${selectedRoom}` : "Select a room to chat"}
+      </div>
+
+      <div
+        style={{
+          flex: 1,
+          padding: "10px",
+          overflowY: "auto",
+          background: "#fffdf2",
+          paddingBottom: "70px", // ✅ room for input bar
+        }}
+      >
+        {messages.length === 0 ? (
+          <p
             style={{
-              width: "100%",
-              padding: "8px",
-              background: "#c62828",
-              color: "#fff",
-              border: "none",
-              borderRadius: "6px",
-              fontWeight: "bold",
-              cursor: "pointer",
-              marginBottom: "8px",
+              textAlign: "center",
+              color: "#666",
+              fontSize: isMobile ? "0.9rem" : "1rem",
             }}
           >
-            🧹 Clear All Chats
-          </button>
-          <button
-            onClick={clearSelectedRoom}
-            style={{
-              width: "100%",
-              padding: "8px",
-              background: "#1976d2",
-              color: "#fff",
-              border: "none",
-              borderRadius: "6px",
-              fontWeight: "bold",
-              cursor: "pointer",
-            }}
-          >
-            🧽 Clear This Room
-          </button>
-        </div>
-
-        {rooms.length === 0 ? (
-          <p style={{ textAlign: "center", color: "#555" }}>No rooms yet</p>
+            {selectedRoom
+              ? "No messages yet in this room."
+              : "Select a room to start chatting."}
+          </p>
         ) : (
-          rooms.map((room) => (
+          messages.map((msg, i) => (
             <div
-              key={room}
-              onClick={() => joinRoom(room)}
+              key={i}
               style={{
-                padding: "10px",
-                marginTop: "10px",
-                background:
-                  selectedRoom === room ? "#1f3b2e" : "rgba(255,255,255,0.8)",
-                color: selectedRoom === room ? "#fff" : "#1f3b2e",
-                borderRadius: "8px",
-                cursor: "pointer",
-                position: "relative",
-                fontWeight: "bold",
+                display: "flex",
+                justifyContent:
+                  msg.sender === "host" ? "flex-end" : "flex-start",
+                marginBottom: "8px",
               }}
             >
-              {room}
-              {notifications[room] > 0 && (
-                <span
-                  style={{
-                    position: "absolute",
-                    right: "10px",
-                    top: "8px",
-                    background: "red",
-                    color: "white",
-                    borderRadius: "50%",
-                    width: "20px",
-                    height: "20px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "0.8em",
-                  }}
-                >
-                  {notifications[room]}
-                </span>
-              )}
+              <div
+                style={{
+                  background: msg.sender === "host" ? "#1f3b2e" : "#fff7b3",
+                  color: msg.sender === "host" ? "#fff9b0" : "#1f3b2e",
+                  padding: isMobile ? "8px 10px" : "10px 14px",
+                  borderRadius: "10px",
+                  maxWidth: "75%",
+                  fontSize: isMobile ? "0.9rem" : "1rem",
+                }}
+              >
+                {msg.text}
+              </div>
             </div>
           ))
         )}
       </div>
 
-      {/* Chat Window */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-        <div
+      {selectedRoom && (
+        <form
+          onSubmit={sendMessage}
           style={{
-            background: "#1f3b2e",
-            color: "#fff9b0",
-            padding: "12px",
-            textAlign: "center",
-            fontWeight: "bold",
-            letterSpacing: "0.5px",
+            position: "fixed", // ✅ always visible
+            bottom: 0,
+            left: isMobile ? 0 : "260px",
+            right: 0,
+            display: "flex",
+            padding: "10px",
+            background: "#fff9b0",
+            borderTop: "1px solid #ddd",
+            alignItems: "center",
+            zIndex: 3,
           }}
         >
-          {selectedRoom ? `Chat with ${selectedRoom}` : "Select a room to chat"}
-        </div>
-
-        <div
-          style={{
-            flex: 1,
-            padding: "15px",
-            overflowY: "auto",
-            background: "#fffdf2",
-          }}
-        >
-          {messages.length === 0 ? (
-            <p style={{ textAlign: "center", color: "#666" }}>
-              {selectedRoom
-                ? "No messages yet in this room."
-                : "Select a room to start chatting."}
-            </p>
-          ) : (
-            messages.map((msg, i) => (
-              <div
-                key={i}
-                style={{
-                  display: "flex",
-                  justifyContent:
-                    msg.sender === "host" ? "flex-end" : "flex-start",
-                  marginBottom: "10px",
-                }}
-              >
-                <div
-                  style={{
-                    background:
-                      msg.sender === "host" ? "#1f3b2e" : "#fff7b3",
-                    color: msg.sender === "host" ? "#fff9b0" : "#1f3b2e",
-                    padding: "10px 14px",
-                    borderRadius: "10px",
-                    maxWidth: "70%",
-                  }}
-                >
-                  {msg.text}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        {selectedRoom && (
-          <form
-            onSubmit={sendMessage}
+          <input
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Type your reply..."
             style={{
-              display: "flex",
-              padding: "10px",
-              background: "#fff9b0",
-              borderTop: "1px solid #ddd",
+              flex: 1,
+              border: "none",
+              borderRadius: "10px",
+              padding: "10px 12px",
+              outline: "none",
+              background: "#fff",
+              fontSize: isMobile ? "0.9rem" : "0.95rem",
+            }}
+          />
+          <button
+            type="submit"
+            style={{
+              background: "#1f3b2e",
+              color: "white",
+              border: "none",
+              borderRadius: "10px",
+              padding: "8px 12px",
+              marginLeft: "8px",
+              cursor: "pointer",
+              fontSize: isMobile ? "0.9rem" : "1rem",
+              height: "40px",
             }}
           >
-            <input
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Type your reply..."
-              style={{
-                flex: 1,
-                border: "none",
-                borderRadius: "10px",
-                padding: "8px 10px",
-                outline: "none",
-                background: "#fff",
-                fontSize: "0.95rem",
-              }}
-            />
-            <button
-              type="submit"
-              style={{
-                background: "#1f3b2e",
-                color: "white",
-                border: "none",
-                borderRadius: "10px",
-                padding: "8px 12px",
-                marginLeft: "6px",
-                cursor: "pointer",
-              }}
-            >
-              ➤
-            </button>
-          </form>
-        )}
-      </div>
+            ➤
+          </button>
+        </form>
+      )}
     </div>
-  );
+  </div>
+);
 }

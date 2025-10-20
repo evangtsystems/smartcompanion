@@ -12,6 +12,14 @@ export default function ChatbotWidget({ roomId }) {
   const [input, setInput] = useState("");
   const [resolvedRoomId, setResolvedRoomId] = useState(null);
   const chatEndRef = useRef(null);
+  const [unreadCount, setUnreadCount] = useState(0); // 🔴 new
+
+  const handleOpenChat = () => {
+  setShowChat(true);
+  setUnreadCount(0); // clear badge when opening chat
+};
+
+
 
   // 🏠 Resolve the room ID
   useEffect(() => {
@@ -84,25 +92,30 @@ async function registerPush(roomId) {
     });
 
     s.on("newMessage", (msg) => {
-      setMessages((prev) => [...prev, msg]);
+  setMessages((prev) => [...prev, msg]);
 
-      // 🔔 Play notification sound only for host → guest messages
-      if (msg.sender !== "guest") {
-        try {
-  const audio = new Audio("/smile-ringtone.mp3");
-  audio.play().catch(() => {
-    const fallback = new Audio("/smile-ringtone.ogg");
-    fallback.play().catch(() => {});
-  });
-} catch (err) {
-  console.warn("Sound play failed:", err);
-}
+  // 🔔 Host → guest message notification
+  if (msg.sender !== "guest") {
+    try {
+      const audio = new Audio("/smile-ringtone.mp3");
+      audio.play().catch(() => {
+        const fallback = new Audio("/smile-ringtone.ogg");
+        fallback.play().catch(() => {});
+      });
+    } catch (err) {
+      console.warn("Sound play failed:", err);
+    }
+
+    if ("vibrate" in navigator) navigator.vibrate([200, 100, 200]);
+
+    // 🔴 NEW → show badge only when chat window is closed
+    if (!showChat) {
+      setUnreadCount((prev) => prev + 1);
+    }
+  }
+});
 
 
-        // 📳 Optional vibration
-        if ("vibrate" in navigator) navigator.vibrate([200, 100, 200]);
-      }
-    });
 
     return () => {
       s.removeAllListeners();
@@ -169,31 +182,57 @@ setInput("");
       {/* Floating Button */}
       {!showChat && (
         <div
-          onClick={() => setShowChat(true)}
-          style={{
-            background: "linear-gradient(145deg, #418f22ff, #ffe76b)",
-            borderRadius: "50%",
-            width: "70px",
-            height: "70px",
-            boxShadow:
-              "0 8px 20px rgba(0,0,0,0.25), inset 0 -2px 4px rgba(0,0,0,0.1)",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            cursor: "pointer",
-            transition: "transform 0.25s ease, box-shadow 0.3s ease",
-          }}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="34"
-            height="34"
-            viewBox="0 0 24 24"
-            fill="white"
-          >
-            <path d="M4 4h10a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2H8l-4 3V6a2 2 0 0 1 2-2zm12 3h4a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3l-3 2v-2h-2a2 2 0 0 1-2-2v-1h4a2 2 0 0 0 2-2V7z" />
-          </svg>
-        </div>
+  onClick={handleOpenChat}
+  style={{
+    position: "relative",
+    background: "linear-gradient(145deg, #418f22ff, #ffe76b)",
+    borderRadius: "50%",
+    width: "70px",
+    height: "70px",
+    boxShadow:
+      "0 8px 20px rgba(0,0,0,0.25), inset 0 -2px 4px rgba(0,0,0,0.1)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    cursor: "pointer",
+    transition: "transform 0.25s ease, box-shadow 0.3s ease",
+  }}
+>
+  {/* 🔴 Unread message badge */}
+  {unreadCount > 0 && (
+    <div
+      style={{
+        position: "absolute",
+        top: "8px",
+        right: "8px",
+        background: "#ff1744",
+        color: "white",
+        fontSize: "0.8rem",
+        fontWeight: "700",
+        borderRadius: "50%",
+        width: "22px",
+        height: "22px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        boxShadow: "0 0 6px rgba(0,0,0,0.2)",
+      }}
+    >
+      {unreadCount}
+    </div>
+  )}
+
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="34"
+    height="34"
+    viewBox="0 0 24 24"
+    fill="white"
+  >
+    <path d="M4 4h10a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2H8l-4 3V6a2 2 0 0 1 2-2zm12 3h4a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3l-3 2v-2h-2a2 2 0 0 1-2-2v-1h4a2 2 0 0 0 2-2V7z" />
+  </svg>
+</div>
+
       )}
 
       {/* Chat Window */}
