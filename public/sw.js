@@ -1,6 +1,6 @@
-// ✅ Smart Companion Service Worker (stable + push + offline)
+// ✅ Smart Companion Service Worker (stable + reliable push notifications)
 
-const CACHE_VERSION = "v6"; // 🔁 bump this when deploying new builds
+const CACHE_VERSION = "v6"; // bump version on each deploy
 const CACHE_NAME = `smart-companion-${CACHE_VERSION}`;
 
 const ASSETS = [
@@ -16,7 +16,7 @@ const ASSETS = [
   "/icons/icon-512.png",
 ];
 
-// 🟢 INSTALL — Precache core assets
+// 🟢 INSTALL — Pre-cache core files
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
@@ -24,7 +24,7 @@ self.addEventListener("install", (event) => {
   self.skipWaiting();
 });
 
-// 🟡 ACTIVATE — Remove old caches + take control
+// 🟡 ACTIVATE — Clean up old caches and reload pages
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
@@ -35,7 +35,7 @@ self.addEventListener("activate", (event) => {
       await self.clients.claim();
       console.log("🔥 Service Worker active — cache cleaned");
 
-      // Notify clients that new SW took control
+      // Notify open tabs that a new SW is active
       const clientsList = await self.clients.matchAll({ type: "window" });
       clientsList.forEach((client) =>
         client.postMessage({ type: "NEW_SW_ACTIVE" })
@@ -44,26 +44,20 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// 🔵 FETCH — Network-first for HTML, cache-first for others
+// 🔵 FETCH — Network-first for pages, cache-first for static assets
 self.addEventListener("fetch", (event) => {
   const req = event.request;
 
-  // 🧭 For navigation requests (pages)
   if (req.mode === "navigate") {
-    event.respondWith(
-      fetch(req).catch(() => caches.match("/"))
-    );
+    event.respondWith(fetch(req).catch(() => caches.match("/")));
     return;
   }
 
-  // 🧱 For static files
   event.respondWith(
     caches.match(req).then((cached) => {
       if (cached) return cached;
-
       return fetch(req)
         .then((res) => {
-          // Cache successful same-origin responses
           if (
             req.url.startsWith(self.location.origin) &&
             res.ok &&
@@ -79,18 +73,18 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
-// 💬 In-app chat messages (manual trigger)
+// 🔔 In-app chat notification (triggered manually from the web app)
 self.addEventListener("message", (event) => {
-  if (event.data?.type === "chatMessage") {
+  if (event.data && event.data.type === "chatMessage") {
     self.registration.showNotification("New message", {
-      body: event.data.text || "You received a new message",
+      body: event.data.text,
       icon: "/icons/icon-192.png",
       vibrate: [200, 100, 200],
     });
   }
 });
 
-// 🔔 PUSH — Handle incoming push notifications
+// 🔔 PUSH — Reliable push notification handling
 self.addEventListener("push", (event) => {
   if (!event.data) return;
 
@@ -99,11 +93,18 @@ self.addEventListener("push", (event) => {
       try {
         const data = event.data.json();
         const title = data.title || "Smart Companion";
-        const body = data.body || "You have a new message";
+        const body = String(data.body || "You have a new message");
         const url = data.url || "/";
 
         console.log("📨 Push received:", title, body);
 
+        // ✅ Ensure permission still valid
+        if (Notification.permission !== "granted") {
+          console.warn("🚫 Notification permission not granted");
+          return;
+        }
+
+        // ✅ Show notification
         await self.registration.showNotification(title, {
           body,
           icon: "/icons/icon-192.png",
@@ -113,15 +114,24 @@ self.addEventListener("push", (event) => {
           actions: [{ action: "open", title: "Open" }],
           renotify: true,
           tag: "smart-companion",
+          requireInteraction: true, // stays visible until tapped
         });
+
+        console.log("✅ Notification displayed successfully");
       } catch (err) {
         console.error("❌ Push event failed:", err);
+
+        // 🧩 Fallback — show default notification
+        await self.registration.showNotification("Smart Companion", {
+          body: "You received a new message",
+          icon: "/icons/icon-192.png",
+        });
       }
     })()
   );
 });
 
-// 🔗 Click on notification → open or focus tab
+// 🔗 Handle notification clicks — focus or open the app
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url = event.notification.data?.url || "/";
@@ -133,18 +143,15 @@ self.addEventListener("notificationclick", (event) => {
         includeUncontrolled: true,
       });
 
-      const focused = clientsList.find((c) => c.url.includes(url));
-      if (focused) return focused.focus();
+      // Try focusing existing tab
+      for (const client of clientsList) {
+        if (client.url.includes(url)) {
+          return client.focus();
+        }
+      }
 
+      // Otherwise, open a new tab
       return clients.openWindow(url);
     })()
   );
-});
-
-// 🧹 Optional: clear obsolete caches when user sends manual request
-self.addEventListener("message", (event) => {
-  if (event.data?.type === "CLEAR_CACHES") {
-    caches.keys().then((keys) => keys.forEach((key) => caches.delete(key)));
-    console.log("🧹 Caches cleared manually");
-  }
 });
