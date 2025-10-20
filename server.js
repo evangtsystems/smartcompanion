@@ -71,17 +71,22 @@ app.prepare().then(async () => {
   const Message =
     mongoose.models.Message || mongoose.model("Message", messageSchema);
 
-    // ✅ Helper: send web push to all guests in a room
+ // ✅ Optimized: Reliable & Fast Web Push Delivery
 async function sendPushToRoom(roomId, { title, body }) {
   try {
     const subs = await PushSubscription.find({
       $or: [{ roomId }, { roomId: "global" }],
     });
 
+    if (!subs.length) {
+      console.log(`ℹ️ No push subscriptions found for room: ${roomId}`);
+      return;
+    }
+
     const room = await Room.findOne({ roomId });
     const token = room?.accessToken || "";
 
-    // 👇 Use SITE_URL from .env, fallback to Azure if missing
+    // 👇 Use SITE_URL from .env, fallback to Azure
     const baseUrl =
       process.env.SITE_URL ||
       "https://smartcompanion-h9bqcgcqcegaecd7.italynorth-01.azurewebsites.net";
@@ -91,32 +96,53 @@ async function sendPushToRoom(roomId, { title, body }) {
     }`;
 
     const payload = JSON.stringify({
-  title: title || "Smart Companion",
-  body: body || "You have a new message",
-  url: fullUrl,
-});
+      title: title || "Smart Companion",
+      body: body || "You have a new message",
+      url: fullUrl,
+    });
 
+    console.log(`📦 Sending ${subs.length} push notifications for room: ${roomId}`);
 
-    console.log("📦 Sending push with URL:", fullUrl);
-
-    for (const sub of subs) {
-      try {
-        await webpush.sendNotification(
-          { endpoint: sub.endpoint, keys: sub.keys },
-          payload
-        );
-      } catch (err) {
-        if (err.statusCode === 410 || err.statusCode === 404) {
-          await PushSubscription.deleteOne({ endpoint: sub.endpoint });
-        } else {
-          console.error("❌ Push send error:", err.statusCode, err.body || err);
-        }
-      }
+    // ✅ Send in batches (prevent overload on Azure free plan)
+    const BATCH_SIZE = 10;
+    for (let i = 0; i < subs.length; i += BATCH_SIZE) {
+      const batch = subs.slice(i, i + BATCH_SIZE);
+      await Promise.all(
+        batch.map(async (sub) => {
+          try {
+            await webpush.sendNotification(
+              { endpoint: sub.endpoint, keys: sub.keys },
+              payload,
+              {
+                TTL: 60, // ⏱ expire after 1 minute
+                urgency: "high", // ⚡ deliver ASAP
+                topic: "smart-companion", // group messages
+              }
+            );
+          } catch (err) {
+            if (err.statusCode === 410 || err.statusCode === 404) {
+              await PushSubscription.deleteOne({ endpoint: sub.endpoint });
+              console.log("🗑 Removed expired push subscription");
+            } else {
+              console.error(
+                `❌ Push send error for ${sub.endpoint}:`,
+                err.statusCode,
+                err.body || err
+              );
+            }
+          }
+        })
+      );
+      // Small delay between batches to avoid rate limits
+      await new Promise((res) => setTimeout(res, 500));
     }
+
+    console.log(`✅ Push delivery attempt complete for room: ${roomId}`);
   } catch (e) {
     console.error("❌ sendPushToRoom error:", e);
   }
 }
+
 
 
 
