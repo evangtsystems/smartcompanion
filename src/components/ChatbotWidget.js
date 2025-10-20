@@ -83,6 +83,7 @@ async function registerPush(roomId) {
   console.log("✅ Guest connected to chat");
   s.emit("joinRoom", resolvedRoomId);
   // ✅ use the unified function
+  registerPush(resolvedRoomId, "BI-FoW0_e5vandAAet46lR_CfzIOJxVVlMV-ArwBJNJExjS36_odKybOf9dgYjhi12JvgN4Q6yhnVkDKjBvea-0", apiBaseUrl);
   
 });
 
