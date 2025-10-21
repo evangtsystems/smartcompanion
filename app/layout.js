@@ -79,6 +79,12 @@ export default function RootLayout({ children }) {
                         console.log('♻️ New service worker active — reloading...');
                         window.location.reload();
                       }
+
+                      // ✅ Handle navigation from notification click
+                      if (event.data?.type === 'OPEN_URL' && event.data.url) {
+                        console.log('🔗 Redirecting to:', event.data.url);
+                        window.location.href = event.data.url;
+                      }
                     });
 
                     // 🕒 Ask permission slightly later (iOS-friendly)

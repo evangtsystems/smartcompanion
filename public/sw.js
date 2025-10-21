@@ -131,10 +131,9 @@ self.addEventListener("push", (event) => {
   );
 });
 
-// 🔗 Handle notification clicks — focus or open the app
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = event.notification.data?.url || "/";
+  const targetUrl = event.notification.data?.url || "/";
 
   event.waitUntil(
     (async () => {
@@ -143,15 +142,16 @@ self.addEventListener("notificationclick", (event) => {
         includeUncontrolled: true,
       });
 
-      // Try focusing existing tab
-      for (const client of clientsList) {
-        if (client.url.includes(url)) {
-          return client.focus();
-        }
+      // ✅ If app window is already open — focus it and send message
+      if (clientsList.length > 0) {
+        const client = clientsList[0];
+        await client.focus();
+        client.postMessage({ type: "OPEN_URL", url: targetUrl });
+        return;
       }
 
-      // Otherwise, open a new tab
-      return clients.openWindow(url);
+      // ✅ Otherwise, open new PWA window
+      await clients.openWindow(targetUrl);
     })()
   );
 });
