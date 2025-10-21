@@ -87,10 +87,7 @@ navigator.serviceWorker.addEventListener('message', (event) => {
     window.location.href = event.data.url;
   }
 
-  // 🔔 Fallback alert if notification arrives while app is open
-  if (event.data?.type === 'IN_APP_NOTIFICATION') {
-    alert(event.data.text || 'New message received');
-  }
+  
 });
 
 
