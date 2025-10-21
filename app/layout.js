@@ -73,19 +73,26 @@ export default function RootLayout({ children }) {
                     const readyReg = await navigator.serviceWorker.ready;
                     console.log('📦 SW ready:', readyReg.scope);
 
-                    // ♻️ Reload if new service worker activates
-                    navigator.serviceWorker.addEventListener('message', (event) => {
-                      if (event.data?.type === 'NEW_SW_ACTIVE') {
-                        console.log('♻️ New service worker active — reloading...');
-                        window.location.reload();
-                      }
+                    // ♻️ Reload if new service worker activates + handle push messages
+navigator.serviceWorker.addEventListener('message', (event) => {
+  // 🔁 Handle SW update
+  if (event.data?.type === 'NEW_SW_ACTIVE') {
+    console.log('♻️ New service worker active — reloading...');
+    window.location.reload();
+  }
 
-                      // ✅ Handle navigation from notification click
-                      if (event.data?.type === 'OPEN_URL' && event.data.url) {
-                        console.log('🔗 Redirecting to:', event.data.url);
-                        window.location.href = event.data.url;
-                      }
-                    });
+  // 🔗 Handle navigation from notification click
+  if (event.data?.type === 'OPEN_URL' && event.data.url) {
+    console.log('🔗 Redirecting to:', event.data.url);
+    window.location.href = event.data.url;
+  }
+
+  // 🔔 Fallback alert if notification arrives while app is open
+  if (event.data?.type === 'IN_APP_NOTIFICATION') {
+    alert(event.data.text || 'New message received');
+  }
+});
+
 
                     // 🕒 Ask permission slightly later (iOS-friendly)
                     setTimeout(async () => {

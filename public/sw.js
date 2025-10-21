@@ -96,6 +96,13 @@ self.addEventListener("push", (event) => {
         const body = String(data.body || "You have a new message");
         const url = data.url || "/";
 
+        // ✅ If the app is open, send an in-app message to all active windows
+const clientsList = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+for (const client of clientsList) {
+  client.postMessage({ type: "IN_APP_NOTIFICATION", text: body });
+}
+
+
         console.log("📨 Push received:", title, body);
 
         // ✅ Ensure permission still valid
