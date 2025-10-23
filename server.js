@@ -409,35 +409,38 @@ server.get("/api/tracking/list", async (req, res) => {
   const reads = await MessageRead.find().sort({ timestamp: -1 }).limit(50);
   res.json(reads);
 });
-// ✅ Email Fallback API (for iPhone Safari users)
+// ✅ Email Fallback API (Resend version)
 server.post("/api/email/fallback", async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, subject = "📩 Smart Companion Fallback", message = "User registered for email fallback" } = req.body;
+
     if (!email || !email.includes("@")) {
       return res.status(400).json({ success: false, message: "Invalid email" });
     }
 
-    await transporter.sendMail({
-      from: `"Smart Companion" <${process.env.SMTP_USER}>`,
-      to: process.env.ADMIN_EMAIL || process.env.SMTP_USER,
-      subject: "📩 New Email Fallback Subscription",
+    // Debug log for Azure
+    console.log("📧 Sending via Resend. Key loaded:", !!process.env.RESEND_API_KEY);
+
+    const result = await resend.emails.send({
+      from: "Smart Companion <onboarding@resend.dev>",
+      to: email,
+      subject,
       html: `
-        <div style="font-family:Arial,sans-serif;">
-          <h3>New iPhone Safari Fallback User</h3>
-          <p>The following user requested to receive email alerts instead of push:</p>
-          <p><b>Email:</b> ${email}</p>
-          <p><i>Added automatically via fallback modal.</i></p>
+        <div style="font-family:Arial,sans-serif;color:#333;padding:10px">
+          <h3>${subject}</h3>
+          <p>${message}</p>
         </div>
       `,
     });
 
-    console.log(`✅ Fallback email registered: ${email}`);
+    console.log("✅ Resend response:", result);
     res.json({ success: true });
   } catch (err) {
     console.error("❌ /api/email/fallback failed:", err);
     res.status(500).json({ success: false, error: "Server error" });
   }
 });
+
 
 
 // ✅ Admin API: Update guest email for a room
