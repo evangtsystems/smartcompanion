@@ -422,7 +422,7 @@ server.post("/api/email/fallback", async (req, res) => {
     console.log("📧 Sending via Resend. Key loaded:", !!process.env.RESEND_API_KEY);
 
     const result = await resend.emails.send({
-      from: "Smart Companion <onboarding@resend.dev>",
+      from: "Smart Companion <info@corfutransfersapp.com>",
       to: email,
       subject,
       html: `
