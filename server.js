@@ -12,6 +12,8 @@ import PushSubscription from "./src/models/PushSubscription.js";
 import Room from "./src/models/Room.js";
 import nodemailer from "nodemailer";
 import MessageRead from "./src/models/MessageRead.js";
+import { Resend } from "resend";
+
 
 
 
@@ -33,7 +35,7 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
 const dev = process.env.NODE_ENV !== "production";
 const app = next({ dev });
 const handle = app.getRequestHandler();
-
+const resend = new Resend(process.env.RESEND_API_KEY);
 app.prepare().then(async () => {
   const server = express();
   const httpServer = http.createServer(server);
@@ -407,7 +409,6 @@ server.get("/api/tracking/list", async (req, res) => {
   const reads = await MessageRead.find().sort({ timestamp: -1 }).limit(50);
   res.json(reads);
 });
-
 // ✅ Email Fallback API (for iPhone Safari users)
 server.post("/api/email/fallback", async (req, res) => {
   try {
@@ -415,9 +416,6 @@ server.post("/api/email/fallback", async (req, res) => {
     if (!email || !email.includes("@")) {
       return res.status(400).json({ success: false, message: "Invalid email" });
     }
-
-    // Optionally: Save to DB if you want to track fallback emails
-    // await FallbackEmail.create({ email, timestamp: new Date() });
 
     await transporter.sendMail({
       from: `"Smart Companion" <${process.env.SMTP_USER}>`,
@@ -440,6 +438,7 @@ server.post("/api/email/fallback", async (req, res) => {
     res.status(500).json({ success: false, error: "Server error" });
   }
 });
+
 
 // ✅ Admin API: Update guest email for a room
 server.post("/api/admin/update-room-email", async (req, res) => {
