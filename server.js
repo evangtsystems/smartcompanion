@@ -179,36 +179,50 @@ async function sendPushToRoom(roomId, { title, body }) {
   }
 }
 
+// keep your existing: import { Resend } from "resend";
+// and: const resend = new Resend(process.env.RESEND_API_KEY);
 
-// ✅ Helper: Email fallback sender
 async function sendEmailFallback(to, title, body, url) {
   if (!to) {
     console.warn("⚠️ No recipient email for fallback");
     return;
   }
 
+  const subject = title || "Smart Companion Update";
+  const html = `
+    <div style="font-family:Arial,sans-serif;color:#333;padding:16px">
+      <h3 style="margin:0 0 8px 0">${subject}</h3>
+      <p style="margin:0 0 12px 0">${body || "You have a new message"}</p>
+      ${
+        url
+          ? `<a href="${url}"
+                style="display:inline-block;background:#1f3b2e;color:#fff;
+                       padding:10px 14px;border-radius:8px;text-decoration:none">
+               Open Chat
+             </a>`
+          : ""
+      }
+      <div style="margin-top:12px;font-size:12px;color:#777">
+        If the button doesn’t work, open: <br/>
+        <span style="word-break:break-all">${url || ""}</span>
+      </div>
+    </div>
+  `;
+
   try {
-    await transporter.sendMail({
-      from: `"Smart Companion" <${process.env.SMTP_USER}>`,
+    const result = await resend.emails.send({
+      from: "Smart Companion <info@corfutransfersapp.com>",
       to,
-      subject: title || "Smart Companion Update",
-      html: `
-        <div style="font-family:Arial,sans-serif;color:#333;padding:10px">
-          <h3>${title || "Smart Companion Update"}</h3>
-          <p>${body}</p>
-          ${
-            url
-              ? `<p><a href="${url}" style="color:#1f3b2e;font-weight:bold">Open Chat</a></p>`
-              : ""
-          }
-        </div>
-      `,
+      subject,
+      html,
+      reply_to: "info@corfutransfersapp.com", // optional
     });
-    console.log(`📧 Email sent to: ${to}`);
+    console.log(`📧 Fallback email sent to ${to}`, result?.id ? `id=${result.id}` : "");
   } catch (e) {
-    console.error("❌ Email fallback failed:", e.message);
+    console.error("❌ Resend fallback failed:", e);
   }
 }
+
 
 
 
