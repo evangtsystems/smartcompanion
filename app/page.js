@@ -6,6 +6,8 @@ import QrScannerModal from "../src/components/QrScannerModal";
 import InstallAppButton from "../src/components/InstallAppButton";
 import EmergencyContacts from "../src/components/EmergencyContacts";
 import UsefulInfoSection from "../src/components/UsefulInfoSection";
+import EmailFallbackModal from "../src/components/EmailFallbackModal";
+
 
 
 export default function Home() {
@@ -407,6 +409,8 @@ export default function Home() {
       >
         © {new Date().getFullYear()} GT Systems — Smart Companion for Villas
       </footer>
+      <EmailFallbackModal />
+
     </div>
   );
 }

@@ -383,6 +383,73 @@ server.get("/api/tracking/list", async (req, res) => {
   res.json(reads);
 });
 
+// ✅ Email Fallback API (for iPhone Safari users)
+server.post("/api/email/fallback", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || !email.includes("@")) {
+      return res.status(400).json({ success: false, message: "Invalid email" });
+    }
+
+    // Optionally: Save to DB if you want to track fallback emails
+    // await FallbackEmail.create({ email, timestamp: new Date() });
+
+    await transporter.sendMail({
+      from: `"Smart Companion" <${process.env.SMTP_USER}>`,
+      to: process.env.ADMIN_EMAIL || process.env.SMTP_USER,
+      subject: "📩 New Email Fallback Subscription",
+      html: `
+        <div style="font-family:Arial,sans-serif;">
+          <h3>New iPhone Safari Fallback User</h3>
+          <p>The following user requested to receive email alerts instead of push:</p>
+          <p><b>Email:</b> ${email}</p>
+          <p><i>Added automatically via fallback modal.</i></p>
+        </div>
+      `,
+    });
+
+    console.log(`✅ Fallback email registered: ${email}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ /api/email/fallback failed:", err);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
+// ✅ Admin API: Update guest email for a room
+server.post("/api/admin/update-room-email", async (req, res) => {
+  try {
+    const { roomId, guestEmail } = req.body;
+    if (!roomId || !guestEmail) {
+      return res.status(400).json({ success: false, message: "Missing data" });
+    }
+
+    await Room.updateOne(
+      { roomId },
+      { $set: { guestEmail } },
+      { upsert: false }
+    );
+
+    console.log(`✏️ Updated guest email for ${roomId}: ${guestEmail}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Error updating guest email:", err);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
+// ✅ Fetch all rooms (for admin dashboard)
+server.get("/api/admin/rooms", async (req, res) => {
+  try {
+    const rooms = await Room.find().sort({ createdAt: -1 });
+    res.json({ success: true, rooms });
+  } catch (err) {
+    console.error("❌ Error fetching rooms:", err);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+
+
 
 // ✅ Let Next.js handle *everything else*
 server.all(/.*/, (req, res) => handle(req, res));
