@@ -10,6 +10,8 @@ import apiRouter from "./src/routes/index.js";
 import webpush from "web-push";
 import PushSubscription from "./src/models/PushSubscription.js";
 import Room from "./src/models/Room.js";
+import nodemailer from "nodemailer";
+import MessageRead from "./src/models/MessageRead.js";
 
 
 
@@ -71,22 +73,29 @@ app.prepare().then(async () => {
   const Message =
     mongoose.models.Message || mongoose.model("Message", messageSchema);
 
- // ✅ Optimized: Reliable & Fast Web Push Delivery
+ // ✅ Push + Email fallback (Safari-safe)
+
+
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT),
+  secure: process.env.SMTP_SECURE === "true",
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
+
 async function sendPushToRoom(roomId, { title, body }) {
   try {
     const subs = await PushSubscription.find({
       $or: [{ roomId }, { roomId: "global" }],
     });
 
-    if (!subs.length) {
-      console.log(`ℹ️ No push subscriptions found for room: ${roomId}`);
-      return;
-    }
-
     const room = await Room.findOne({ roomId });
     const token = room?.accessToken || "";
+    const guestEmail = room?.guestEmail || process.env.ADMIN_EMAIL;
 
-    // 👇 Use SITE_URL from .env, fallback to Azure
     const baseUrl =
       process.env.SITE_URL ||
       "https://smartcompanion-h9bqcgcqcegaecd7.italynorth-01.azurewebsites.net";
@@ -101,9 +110,14 @@ async function sendPushToRoom(roomId, { title, body }) {
       url: fullUrl,
     });
 
+    if (!subs.length) {
+      console.log(`⚠️ No push subs found — sending email fallback.`);
+      await sendEmailFallback(guestEmail, title, body, fullUrl);
+      return;
+    }
+
     console.log(`📦 Sending ${subs.length} push notifications for room: ${roomId}`);
 
-    // ✅ Send in batches (prevent overload on Azure free plan)
     const BATCH_SIZE = 10;
     for (let i = 0; i < subs.length; i += BATCH_SIZE) {
       const batch = subs.slice(i, i + BATCH_SIZE);
@@ -111,37 +125,64 @@ async function sendPushToRoom(roomId, { title, body }) {
         batch.map(async (sub) => {
           try {
             await webpush.sendNotification(
-              { endpoint: sub.endpoint, keys: sub.keys },
-              payload,
-              {
-                TTL: 60, // ⏱ expire after 1 minute
-                urgency: "high", // ⚡ deliver ASAP
-                topic: "smart-companion", // group messages
-              }
-            );
+  { endpoint: sub.endpoint, keys: sub.keys },
+  payload,
+  { TTL: 60, urgency: "high" }
+);
+
+
           } catch (err) {
+            console.warn(`⚠️ Push failed (${err.statusCode}) — email fallback`);
             if (err.statusCode === 410 || err.statusCode === 404) {
               await PushSubscription.deleteOne({ endpoint: sub.endpoint });
-              console.log("🗑 Removed expired push subscription");
-            } else {
-              console.error(
-                `❌ Push send error for ${sub.endpoint}:`,
-                err.statusCode,
-                err.body || err
-              );
+              console.log("🗑 Removed expired subscription");
             }
+            await sendEmailFallback(guestEmail, title, body, fullUrl);
           }
         })
       );
-      // Small delay between batches to avoid rate limits
       await new Promise((res) => setTimeout(res, 500));
     }
 
-    console.log(`✅ Push delivery attempt complete for room: ${roomId}`);
-  } catch (e) {
-    console.error("❌ sendPushToRoom error:", e);
+    console.log(`✅ Push attempt complete for room: ${roomId}`);
+  } catch (err) {
+    console.error("❌ sendPushToRoom error:", err);
+    const room = await Room.findOne({ roomId });
+    const guestEmail = room?.guestEmail || process.env.ADMIN_EMAIL;
+    await sendEmailFallback(guestEmail, title, body);
   }
 }
+
+// ✅ Helper: Email fallback sender
+async function sendEmailFallback(to, title, body, url) {
+  if (!to) {
+    console.warn("⚠️ No recipient email for fallback");
+    return;
+  }
+
+  try {
+    await transporter.sendMail({
+      from: `"Smart Companion" <${process.env.SMTP_USER}>`,
+      to,
+      subject: title || "Smart Companion Update",
+      html: `
+        <div style="font-family:Arial,sans-serif;color:#333;padding:10px">
+          <h3>${title || "Smart Companion Update"}</h3>
+          <p>${body}</p>
+          ${
+            url
+              ? `<p><a href="${url}" style="color:#1f3b2e;font-weight:bold">Open Chat</a></p>`
+              : ""
+          }
+        </div>
+      `,
+    });
+    console.log(`📧 Email sent to: ${to}`);
+  } catch (e) {
+    console.error("❌ Email fallback failed:", e.message);
+  }
+}
+
 
 
 
@@ -150,6 +191,34 @@ async function sendPushToRoom(roomId, { title, body }) {
   // ✅ Socket.IO event handlers
   io.on("connection", (socket) => {
     console.log("🟢 New user connected:", socket.id);
+
+    socket.on("markRead", async ({ roomId, messageIds, userType }) => {
+  try {
+    if (!Array.isArray(messageIds) || messageIds.length === 0) return;
+
+    // record read events individually
+    await Promise.all(
+      messageIds.map((messageId) =>
+        MessageRead.updateOne(
+          { roomId, messageId, userType },
+          { $set: { timestamp: new Date() } },
+          { upsert: true }
+        )
+      )
+    );
+
+    // ✅ Emit each message’s read event separately for instant UI updates
+    messageIds.forEach((id) => {
+      io.to(roomId).emit("messagesRead", { messageIds: [id], userType,roomId });
+    });
+
+    console.log(`👁️ ${userType} read ${messageIds.length} messages in ${roomId}`);
+  } catch (err) {
+    console.error("❌ markRead error:", err);
+  }
+});
+
+
 
     // 👑 Admin joins dashboard
     socket.on("adminJoin", async () => {
@@ -160,18 +229,34 @@ async function sendPushToRoom(roomId, { title, body }) {
     });
 
     // 🏠 Join specific room
-    socket.on("joinRoom", async (roomId) => {
-      socket.join(roomId);
-      console.log(`🏠 User joined room: ${roomId}`);
+    // 🏠 Admin or guest joins a room
+socket.on("joinRoom", async (roomId) => {
+  try {
+    socket.join(roomId);
+    console.log(`👥 ${socket.id} joined room ${roomId}`);
 
-      const history = await Message.find({ roomId })
-        .sort({ timestamp: 1 })
-        .limit(50);
-      socket.emit("chatHistory", history);
+    // 1️⃣ Fetch all messages for that room
+    const messages = await Message.find({ roomId }).sort({ createdAt: 1 });
 
-      const rooms = await Message.distinct("roomId");
-      io.to("admins").emit("updateRooms", rooms);
-    });
+    // 2️⃣ Fetch all guest read receipts for this room
+    const guestReads = await MessageRead.find({ roomId, userType: "guest" });
+    const guestReadIds = new Set(guestReads.map((r) => r.messageId.toString()));
+
+    // 3️⃣ Merge read status into messages
+    const enrichedMessages = messages.map((m) => ({
+      ...m.toObject(),
+      read: guestReadIds.has(m._id.toString()),
+    }));
+
+    // 4️⃣ Send to client
+    socket.emit("chatHistory", enrichedMessages);
+
+    console.log(`📜 Sent chat history for ${roomId} (${messages.length} messages)`);
+  } catch (err) {
+    console.error("❌ Error loading chat history:", err);
+  }
+});
+
 
     // 💬 Handle new message
     socket.on("sendMessage", async ({ roomId, sender, text }) => {
@@ -271,6 +356,31 @@ server.post("/api/push/subscribe", async (req, res) => {
     console.error("❌ Error saving subscription:", err);
     res.status(500).json({ success: false, error: "Server error" });
   }
+});
+
+// ✅ Track when user opens the chat link or notification
+server.get("/api/tracking/open", async (req, res) => {
+  try {
+    const { roomId, userType = "guest" } = req.query;
+
+    if (!roomId) return res.status(400).send("Missing roomId");
+
+    await MessageRead.create({ roomId, userType });
+    console.log(`👁️  ${userType} opened chat for room ${roomId}`);
+
+    // Redirect to the actual chat page
+    const token = req.query.token ? `?token=${req.query.token}` : "";
+    res.redirect(`/villa/${encodeURIComponent(roomId)}${token}`);
+  } catch (err) {
+    console.error("❌ Tracking error:", err);
+    res.status(500).send("Server error");
+  }
+});
+
+// ✅ View last 50 “read” events
+server.get("/api/tracking/list", async (req, res) => {
+  const reads = await MessageRead.find().sort({ timestamp: -1 }).limit(50);
+  res.json(reads);
 });
 
 

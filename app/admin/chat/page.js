@@ -13,6 +13,7 @@ export default function AdminChatDashboard() {
   const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState("");
   const [showSidebar, setShowSidebar] = useState(false); // ✅ for mobile toggle
+  const [readIds, setReadIds] = useState(new Set());
 
   const defaultRooms = Array.from({ length: 7 }, (_, i) => `Room ${i + 1}`);
 
@@ -53,25 +54,33 @@ s.on("updateRooms", (list) => setRooms(ensureAllRooms(list)));
     s.on("chatHistory", (history) => setMessages(history));
 
     s.on("newMessage", (msg) => {
-      setMessages((prev) => {
-        const alreadyExists = prev.some(
-          (m) =>
-            m.text === msg.text &&
-            m.sender === msg.sender &&
-            m.roomId === msg.roomId
-        );
-        if (alreadyExists) return prev;
+  setMessages((prev) => {
+    // 🧩 Replace local temp message (same text+sender+room)
+    const idx = prev.findIndex(
+      (m) =>
+        m.sender === msg.sender &&
+        m.roomId === msg.roomId &&
+        m.text === msg.text &&
+        String(m._id).startsWith("1") // temp IDs like Date.now()
+    );
 
-        if (msg.roomId === selectedRoom) {
-          return [...prev, msg];
-        } else if (msg.sender === "guest") {
-          setNotifications((n) => ({
-            ...n,
-            [msg.roomId]: (n[msg.roomId] || 0) + 1,
-          }));
-        }
-        return prev;
-      });
+    if (idx !== -1) {
+      const clone = [...prev];
+      clone[idx] = msg; // replace with real backend message
+      return clone;
+    }
+
+    // otherwise, handle as usual
+    if (msg.roomId === selectedRoom) {
+      return [...prev, msg];
+    } else if (msg.sender === "guest") {
+      setNotifications((n) => ({
+        ...n,
+        [msg.roomId]: (n[msg.roomId] || 0) + 1,
+      }));
+    }
+    return prev;
+  });
 
       if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
         navigator.serviceWorker.controller.postMessage({
@@ -90,11 +99,67 @@ s.on("updateRooms", (list) => setRooms(ensureAllRooms(list)));
       }
     });
 
+    // ✅ Listen for "messagesRead" events (guest opened the chat)
+
+
+
+
+
+
+
+
+
     return () => {
       s.disconnect();
       socketRef.current = null;
     };
   }, []);
+
+ useEffect(() => {
+  const s = socketRef.current;
+  if (!s) return;
+
+  const handleMessagesRead = ({ messageIds, userType, roomId }) => {
+    console.log("📩 messagesRead event:", { messageIds, userType, roomId, selectedRoom });
+
+    if (userType !== "guest") return;
+    if (roomId && roomId !== selectedRoom) return;
+    if (!Array.isArray(messageIds) || messageIds.length === 0) return;
+
+    setMessages((prev) => {
+      let changed = false;
+      const updated = prev.map((m) => {
+        const matched = messageIds.some((id) => id.toString() === m._id?.toString());
+        if (matched && !m.read) {
+          changed = true;
+          return { ...m, read: true, _refresh: Date.now() }; // 🟢 forces React re-render
+        }
+        return m;
+      });
+
+      if (changed) {
+        console.log("✅ Marked messages as read:", messageIds);
+        return [...updated]; // force rerender
+      } else {
+        console.log("ℹ️ No messages matched but forcing refresh");
+        return [...prev]; // still force a re-render to update ✓ Seen
+      }
+    });
+
+    setReadIds((prev) => {
+      const next = new Set(prev);
+      messageIds.forEach((id) => next.add(id));
+      return next;
+    });
+  };
+
+  s.on("messagesRead", handleMessagesRead);
+  return () => s.off("messagesRead", handleMessagesRead);
+}, [selectedRoom]);
+
+
+
+
 
   // 🏠 Join room
   const joinRoom = (roomId) => {
@@ -108,26 +173,31 @@ s.on("updateRooms", (list) => setRooms(ensureAllRooms(list)));
 
   // 💬 Send message
   const sendMessage = (e) => {
-    e.preventDefault();
-    const socket = socketRef.current;
-    if (!message.trim() || !socket || !selectedRoom) return;
+  e.preventDefault();
+  const socket = socketRef.current;
+  if (!message.trim() || !socket || !selectedRoom) return;
 
-    const localMsg = {
-      roomId: selectedRoom,
-      sender: "host",
-      text: message,
-      timestamp: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, localMsg]);
-
-    socket.emit("sendMessage", {
-      roomId: selectedRoom,
-      sender: "host",
-      text: message,
-    });
-
-    setMessage("");
+  const tempId = Date.now().toString(); // ✅ temporary ID
+  const localMsg = {
+    _id: tempId,
+    roomId: selectedRoom,
+    sender: "host",
+    text: message,
+    timestamp: new Date().toISOString(),
   };
+
+  setMessages((prev) => [...prev, localMsg]);
+
+  socket.emit("sendMessage", {
+    _id: tempId, // ✅ send to backend so IDs align
+    roomId: selectedRoom,
+    sender: "host",
+    text: message,
+  });
+
+  setMessage("");
+};
+
 
   // 🧹 Clear chats
   const clearAllChats = async () => {
@@ -378,6 +448,21 @@ s.on("updateRooms", (list) => setRooms(ensureAllRooms(list)));
                 }}
               >
                 {msg.text}
+
+               {msg.sender === "host" && (msg.read || readIds.has(msg._id)) && (
+
+  <div
+    style={{
+      fontSize: "0.75rem",
+      color: "#c1ffc1",
+      textAlign: "right",
+      marginTop: "3px",
+    }}
+  >
+    ✓ Seen
+  </div>
+)}
+
               </div>
             </div>
           ))

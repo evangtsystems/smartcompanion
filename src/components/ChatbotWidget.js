@@ -92,7 +92,7 @@ async function registerPush(roomId) {
       setMessages(history);
     });
 
-    s.on("newMessage", (msg) => {
+   s.on("newMessage", (msg) => {
   setMessages((prev) => [...prev, msg]);
 
   // 🔔 Host → guest message notification
@@ -109,12 +109,23 @@ async function registerPush(roomId) {
 
     if ("vibrate" in navigator) navigator.vibrate([200, 100, 200]);
 
-    // 🔴 NEW → show badge only when chat window is closed
+    // 🔴 Show unread badge if chat window is closed
     if (!showChat) {
       setUnreadCount((prev) => prev + 1);
     }
+
+    // 👁️ NEW → instantly mark this message as read if chat is open
+    if (showChat && resolvedRoomId && s) {
+      console.log("👁️ Auto-mark instantly as read:", msg._id);
+      s.emit("markRead", {
+        roomId: resolvedRoomId,
+        messageIds: [msg._id],
+        userType: "guest",
+      });
+    }
   }
 });
+
 
 
 
@@ -123,6 +134,71 @@ async function registerPush(roomId) {
       s.disconnect();
     };
   }, [resolvedRoomId]);
+
+
+ // ✅ Automatically mark host messages as read when chat is open
+// ✅ Automatically mark host messages as read when chat is open or when new messages arrive
+useEffect(() => {
+  if (!socket || !resolvedRoomId) return;
+
+  // helper to emit markRead
+  const markRead = (ids) => {
+    if (ids && ids.length > 0) {
+      console.log("👁️ Sending markRead for:", ids);
+      socket.emit("markRead", {
+        roomId: resolvedRoomId,
+        messageIds: ids,
+        userType: "guest",
+      });
+    }
+  };
+
+  // 🔹 Whenever chat opens or messages change
+  if (showChat && messages.length > 0) {
+    const unreadHost = messages.filter((m) => m.sender === "host" && !m.read);
+    const ids = unreadHost.map((m) => m._id?.toString()).filter(Boolean);
+    if (ids.length > 0) {
+      // Small delay ensures latest message is included
+      setTimeout(() => markRead(ids), 150);
+    }
+  }
+
+  // 🔹 Also listen for new host messages while open
+  const handleNewMessage = (msg) => {
+    if (msg.sender === "host" && showChat) {
+      console.log("👁️ Auto-mark single new message:", msg._id);
+      setTimeout(() => {
+        if (msg._id) markRead([msg._id.toString()]);
+      }, 150);
+    }
+  };
+
+  socket.on("newMessage", handleNewMessage);
+
+  return () => socket.off("newMessage", handleNewMessage);
+}, [socket, resolvedRoomId, showChat, messages]);
+
+
+
+
+
+// ✅ Listen for read receipts from the server
+useEffect(() => {
+  if (!socket) return;
+
+  socket.on("messagesRead", ({ messageIds, userType }) => {
+    if (userType === "guest") {
+      setMessages((prev) =>
+        prev.map((m) =>
+          messageIds.includes(m._id) ? { ...m, read: true } : m
+        )
+      );
+    }
+  });
+
+  return () => socket.off("messagesRead");
+}, [socket]);
+
 
   // 🔽 Auto-scroll to latest message
   useEffect(() => {
@@ -185,15 +261,32 @@ setInput("");
         <div
   onClick={async () => {
   handleOpenChat(); // open the chat
-  // ✅ Ask for notification permission *only once* after user tap
-  if (Notification.permission === "default") {
-    try {
-      await registerPush(resolvedRoomId);
-    } catch (err) {
-      console.error("Push registration error:", err);
+
+  // ✅ Ask for notification permission *only once* per roomId
+  try {
+    const stored = localStorage.getItem("pushRegisteredFor");
+
+    // Register push only if not already registered for this room
+    if (stored !== resolvedRoomId) {
+      if (Notification.permission === "default") {
+        await Notification.requestPermission();
+      }
+
+      if (Notification.permission === "granted") {
+        await registerPush(resolvedRoomId);
+        localStorage.setItem("pushRegisteredFor", resolvedRoomId);
+        console.log("✅ Push registered for", resolvedRoomId);
+      } else {
+        console.warn("🔕 Push permission denied or blocked");
+      }
+    } else {
+      console.log("✅ Push already registered for", resolvedRoomId);
     }
+  } catch (err) {
+    console.error("❌ Push registration error:", err);
   }
 }}
+
 
   style={{
     position: "relative",
@@ -324,6 +417,13 @@ setInput("");
                     }}
                   >
                     {msg.text}
+
+                    {/* ✅ Add this block below msg.text */}
+        {isGuest && i === messages.length - 1 && msg.read && (
+          <div style={{ fontSize: "0.75rem", color: "#d0ffd0", textAlign: "right", marginTop: "2px" }}>
+            ✓ Seen
+          </div>
+        )}
                   </div>
                 </div>
               );

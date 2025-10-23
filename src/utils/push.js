@@ -10,8 +10,11 @@ function urlBase64ToUint8Array(base64String) {
   return outputArray;
 }
 
-export async function registerPush(roomId, publicKey, apiBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || window.location.origin)
- {
+export async function registerPush(
+  roomId,
+  publicKey,
+  apiBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || window.location.origin
+) {
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
 
   try {
@@ -25,10 +28,17 @@ export async function registerPush(roomId, publicKey, apiBaseUrl = process.env.N
     const permission = await Notification.requestPermission();
     if (permission !== "granted") return;
 
-    const subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(vapidKey),
-    });
+    // ✅ Reuse existing subscription if one exists
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
+      });
+      console.log("🆕 Created new push subscription");
+    } else {
+      console.log("♻️ Reusing existing push subscription");
+    }
 
     localStorage.setItem("pushSub", JSON.stringify(subscription.toJSON()));
 
@@ -51,4 +61,3 @@ export async function registerPush(roomId, publicKey, apiBaseUrl = process.env.N
 if (typeof window !== "undefined") {
   window.registerPush = registerPush;
 }
-
