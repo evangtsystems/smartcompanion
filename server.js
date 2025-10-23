@@ -88,13 +88,10 @@ const transporter = nodemailer.createTransport({
 
 async function sendPushToRoom(roomId, { title, body }) {
   try {
-    const subs = await PushSubscription.find({
-      $or: [{ roomId }, { roomId: "global" }],
-    });
-
+    // ✅ Always read current guest email from Room
     const room = await Room.findOne({ roomId });
     const token = room?.accessToken || "";
-    const guestEmail = room?.guestEmail || process.env.ADMIN_EMAIL;
+    const guestEmail = room?.guestEmail || null;
 
     const baseUrl =
       process.env.SITE_URL ||
@@ -110,48 +107,76 @@ async function sendPushToRoom(roomId, { title, body }) {
       url: fullUrl,
     });
 
+    // ✅ Load all push subs for this room (or global)
+    const subs = await PushSubscription.find({
+      $or: [{ roomId }, { roomId: "global" }],
+    });
+
+    // 📨 If no push subscriptions exist → immediately fallback to email
     if (!subs.length) {
-      console.log(`⚠️ No push subs found — sending email fallback.`);
-      await sendEmailFallback(guestEmail, title, body, fullUrl);
+      console.log(`⚠️ No push subscriptions found — using email fallback.`);
+      if (guestEmail) {
+        await sendEmailFallback(guestEmail, title, body, fullUrl);
+      } else {
+        console.warn("⚠️ No guest email found for this room.");
+      }
       return;
     }
 
     console.log(`📦 Sending ${subs.length} push notifications for room: ${roomId}`);
 
+    // ✅ Batch pushes for safety
     const BATCH_SIZE = 10;
+    let successCount = 0;
     for (let i = 0; i < subs.length; i += BATCH_SIZE) {
       const batch = subs.slice(i, i + BATCH_SIZE);
       await Promise.all(
         batch.map(async (sub) => {
           try {
             await webpush.sendNotification(
-  { endpoint: sub.endpoint, keys: sub.keys },
-  payload,
-  { TTL: 60, urgency: "high" }
-);
-
-
+              { endpoint: sub.endpoint, keys: sub.keys },
+              payload,
+              { TTL: 60, urgency: "high" }
+            );
+            successCount++;
           } catch (err) {
-            console.warn(`⚠️ Push failed (${err.statusCode}) — email fallback`);
+            console.warn(`⚠️ Push failed (${err.statusCode || "no-code"})`);
             if (err.statusCode === 410 || err.statusCode === 404) {
               await PushSubscription.deleteOne({ endpoint: sub.endpoint });
               console.log("🗑 Removed expired subscription");
             }
-            await sendEmailFallback(guestEmail, title, body, fullUrl);
+            // ✅ Fallback to guestEmail
+            if (guestEmail) {
+              await sendEmailFallback(guestEmail, title, body, fullUrl);
+            } else {
+              console.warn("⚠️ No guest email set for room fallback.");
+            }
           }
         })
       );
       await new Promise((res) => setTimeout(res, 500));
     }
 
+    // ✅ If *none* succeeded, still fallback
+    if (successCount === 0 && guestEmail) {
+      console.log(`📭 All push attempts failed — emailing ${guestEmail}`);
+      await sendEmailFallback(guestEmail, title, body, fullUrl);
+    }
+
     console.log(`✅ Push attempt complete for room: ${roomId}`);
   } catch (err) {
-    console.error("❌ sendPushToRoom error:", err);
+    console.error("❌ sendPushToRoom fatal error:", err);
+    // Always fallback if anything fails unexpectedly
     const room = await Room.findOne({ roomId });
-    const guestEmail = room?.guestEmail || process.env.ADMIN_EMAIL;
-    await sendEmailFallback(guestEmail, title, body);
+    const guestEmail = room?.guestEmail;
+    if (guestEmail) {
+      await sendEmailFallback(guestEmail, title, body);
+    } else {
+      console.warn("⚠️ Fallback failed — no guest email stored for this room");
+    }
   }
 }
+
 
 // ✅ Helper: Email fallback sender
 async function sendEmailFallback(to, title, body, url) {

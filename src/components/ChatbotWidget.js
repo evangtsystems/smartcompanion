@@ -92,6 +92,25 @@ async function registerPush(roomId) {
       setMessages(history);
     });
 
+    // 🧩 Ensure chat is always up to date when reopening from push or cold start
+(async () => {
+  try {
+    const res = await fetch(`${apiBaseUrl}/api/chat/history/${resolvedRoomId}`);
+    const data = await res.json();
+    if (data.success && Array.isArray(data.messages)) {
+      const alreadyLoaded = new Set((messages || []).map((m) => m._id));
+      const newMessages = data.messages.filter((m) => !alreadyLoaded.has(m._id));
+      if (newMessages.length > 0) {
+        console.log(`🔄 Synced ${newMessages.length} missed messages`);
+        setMessages((prev) => [...prev, ...newMessages]);
+      }
+    }
+  } catch (err) {
+    console.error("❌ Chat resync failed:", err);
+  }
+})();
+
+
    s.on("newMessage", (msg) => {
   setMessages((prev) => [...prev, msg]);
 
