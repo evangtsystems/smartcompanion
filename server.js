@@ -213,12 +213,13 @@ async function sendEmailFallback(to, title, body, url) {
 
   try {
     const result = await resend.emails.send({
-      from: "Smart Companion < <info@resend.dev>>",
-      to,
-      subject,
-      html,
-      reply_to: "info@corfutransfersapp.com", // optional
-    });
+  from: "Smart Companion <info@resend.dev>",   // ✅ correct format
+  to,
+  subject,
+  html,
+  reply_to: "info@corfutransfersapp.com", // optional
+});
+
     console.log(`📧 Fallback email sent to ${to}`, result?.id ? `id=${result.id}` : "");
   } catch (e) {
     console.error("❌ Resend fallback failed:", e);
