@@ -323,6 +323,32 @@ if (sender === "host") {
     title: "New message from your host",
     body: text,
   });
+
+  setTimeout(async () => {
+      try {
+        const alreadyRead = await MessageRead.findOne({
+          roomId,
+          messageId: msg._id,
+          userType: "guest",
+        });
+
+        if (!alreadyRead) {
+          const room = await Room.findOne({ roomId });
+          if (room?.guestEmail) {
+            console.log(`⏰ No read after 15 min — emailing ${room.guestEmail}`);
+            await sendEmailFallback(
+              room.guestEmail,
+              "New message from your host",
+              text,
+              `${process.env.SITE_URL}/villa/${roomId}`
+            );
+          }
+        }
+      } catch (err) {
+        console.error("❌ Scheduled fallback error:", err);
+      }
+    }, 2 * 60 * 1000); // 15 minutes
+  
 }
 
 
