@@ -409,7 +409,7 @@ export default function Home() {
       >
         © {new Date().getFullYear()} GT Systems — Smart Companion for Villas
       </footer>
-      <EmailFallbackModal />
+    
 
     </div>
   );
