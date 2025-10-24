@@ -109,9 +109,8 @@ async function sendPushToRoom(roomId, { title, body }) {
     });
 
     // ✅ Fetch all push subscriptions for this room or global
-    const subs = await PushSubscription.find({
-      $or: [{ roomId }, { roomId: "global" }],
-    });
+    const subs = await PushSubscription.find({ roomId });
+
 
     // ✅ No push subs → directly fallback
     if (!subs.length) {
