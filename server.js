@@ -213,7 +213,7 @@ async function sendEmailFallback(to, title, body, url) {
 
   try {
     const result = await resend.emails.send({
-      from: "Smart Companion <info@corfutransfersapp.com>",
+      from: "Smart Companion < <info@resend.dev>>",
       to,
       subject,
       html,
