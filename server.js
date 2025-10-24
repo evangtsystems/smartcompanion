@@ -375,7 +375,12 @@ server.get("/health", (req, res) => res.send("OK"));
 // ✅ Push Subscription API endpoint
 server.post("/api/push/subscribe", async (req, res) => {
   try {
-    const { roomId, subscription } = req.body;
+    let { roomId, subscription } = req.body;
+if (roomId === "global") {
+  console.warn("🚫 Blocking global subscription");
+  return res.status(400).json({ success: false, message: "Global subscriptions not allowed" });
+}
+
     if (!roomId || !subscription) {
       return res.status(400).json({ success: false, message: "Missing data" });
     }
