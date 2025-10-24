@@ -443,16 +443,21 @@ server.post("/api/email/fallback", async (req, res) => {
     console.log("📧 Sending via Resend. Key loaded:", !!process.env.RESEND_API_KEY);
 
     const result = await resend.emails.send({
-      from: "Smart Companion <info@corfutransfersapp.com>",
-      to: email,
-      subject,
-      html: `
-        <div style="font-family:Arial,sans-serif;color:#333;padding:10px">
-          <h3>${subject}</h3>
-          <p>${message}</p>
-        </div>
-      `,
-    });
+  from: "Smart Companion <info@corfutransfersapp.com>",
+  to: email,
+  subject,
+  html: `
+    <div style="font-family:Arial,sans-serif;color:#333;padding:10px">
+      <h3>${subject}</h3>
+      <p>${message}</p>
+    </div>
+  `,
+  reply_to: "info@corfutransfersapp.com", // optional but recommended
+  headers: {
+    "Return-Path": "info@corfutransfersapp.com", // aligns SPF/DKIM for Outlook trust
+  },
+});
+
 
     console.log("✅ Resend response:", result);
     res.json({ success: true });
