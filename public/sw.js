@@ -1,6 +1,6 @@
 // ✅ Smart Companion Service Worker (stable + reliable push notifications)
 
-const CACHE_VERSION = "v6"; // bump version on each deploy
+const CACHE_VERSION = "v12"; // bump version on each deploy
 const CACHE_NAME = `smart-companion-${CACHE_VERSION}`;
 
 const ASSETS = [
