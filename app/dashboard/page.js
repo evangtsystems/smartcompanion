@@ -154,22 +154,32 @@ export default function DashboardPage() {
   const villaId = "68e3ab8d787a06572cab3f9b"; // replace dynamically later
 
   const fetchRequests = async () => {
+  const apiBaseUrl =
+    process.env.NEXT_PUBLIC_BACKEND_URL ||
+    (typeof window !== "undefined"
+      ? window.location.origin
+      : "http://localhost:5000");
+
   try {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/requests/${villaId}`,
-      {
-        cache: "no-store",
-        headers: { "Cache-Control": "no-cache, no-store, must-revalidate" },
-      }
-    );
+    const res = await fetch(`${apiBaseUrl}/api/requests/${villaId}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+      },
+      cache: "no-store",
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     if (data.success) setRequests(data.data);
   } catch (err) {
-    console.error("Error fetching requests:", err);
+    console.error("❌ Error fetching requests:", err);
   } finally {
     setLoading(false);
   }
 };
+
 
 
   fetchRequests();
