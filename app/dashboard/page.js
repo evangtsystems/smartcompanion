@@ -145,26 +145,38 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
+  const token = localStorage.getItem("token");
+  if (!token) {
+    router.push("/login");
+    return;
+  }
 
-    const fetchRequests = async () => {
-      try {
-        const villaId = "68e3ab8d787a06572cab3f9b"; // replace dynamically later
-        const res = await fetch(`/api/requests/${villaId}`);
-        const data = await res.json();
-        if (data.success) setRequests(data.data);
-      } catch (err) {
-        console.error("Error fetching requests:", err);
-      } finally {
-        setLoading(false);
+  const villaId = "68e3ab8d787a06572cab3f9b"; // replace dynamically later
+
+  const fetchRequests = async () => {
+  try {
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/requests/${villaId}`,
+      {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache, no-store, must-revalidate" },
       }
-    };
-    fetchRequests();
-  }, [router]);
+    );
+    const data = await res.json();
+    if (data.success) setRequests(data.data);
+  } catch (err) {
+    console.error("Error fetching requests:", err);
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+  fetchRequests();
+  const interval = setInterval(fetchRequests, 5000); // 🔁 refresh every 5s
+  return () => clearInterval(interval);
+}, [router]);
+
 
   const handleLogout = () => {
     localStorage.removeItem("token");

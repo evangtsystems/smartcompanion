@@ -1,6 +1,6 @@
 // ✅ Smart Companion Service Worker (stable + reliable push notifications)
 
-const CACHE_VERSION = "v12"; // bump version on each deploy
+const CACHE_VERSION = "v13"; // bump version on each deploy
 const CACHE_NAME = `smart-companion-${CACHE_VERSION}`;
 
 const ASSETS = [
@@ -45,14 +45,37 @@ self.addEventListener("activate", (event) => {
 });
 
 // 🔵 FETCH — Network-first for pages, cache-first for static assets
+// 🔵 FETCH — Network-first for pages, cache-first for static assets
 self.addEventListener("fetch", (event) => {
   const req = event.request;
+  const url = new URL(req.url);
 
+  // 🚫 Skip caching for API requests or any non-GET requests
+  if (
+    url.pathname.startsWith("/api/") ||
+    req.method !== "GET"
+  ) {
+    event.respondWith(fetch(req));
+    return;
+  }
+
+  // 🧩 Skip caching Socket.IO, service worker, and manifest
+  if (
+    url.pathname.startsWith("/socket.io") ||
+    url.pathname.includes("sw.js") ||
+    url.pathname.includes("manifest.json")
+  ) {
+    event.respondWith(fetch(req));
+    return;
+  }
+
+  // 🟢 Pages: network-first
   if (req.mode === "navigate") {
     event.respondWith(fetch(req).catch(() => caches.match("/")));
     return;
   }
 
+  // 🟡 Static assets: cache-first
   event.respondWith(
     caches.match(req).then((cached) => {
       if (cached) return cached;
@@ -72,6 +95,7 @@ self.addEventListener("fetch", (event) => {
     })
   );
 });
+
 
 // 🔔 In-app chat notification (triggered manually from the web app)
 self.addEventListener("message", (event) => {
